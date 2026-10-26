@@ -3,6 +3,7 @@ backend/bin/
 backend/dist/
 frontend/dist/
 frontend/dist-ssr/
+*.tsbuildinfo
 *.local
 
 # Dependencies
