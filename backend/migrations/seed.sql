@@ -54,28 +54,28 @@ BEGIN
     -- $2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC -> standard bcrypt
     -- For test ease, let's insert users:
     INSERT INTO users (email, password_hash, display_name, role)
-    VALUES ('admin@stanford.edu', '$2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC', 'Prof. John McCarthy', 'COLLEGE_ADMIN')
-    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    VALUES ('admin@stanford.edu', '$2a$10$Azleswd6uoWZvARpfVCCa.9qbQU03OXQxHC/sRZIeH64.wystM09i', 'Prof. John McCarthy', 'COLLEGE_ADMIN')
+    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash
     RETURNING id INTO admin_id;
 
     INSERT INTO users (email, password_hash, display_name, role)
-    VALUES ('alice@stanford.edu', '$2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC', 'Alice Chen', 'STUDENT')
-    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    VALUES ('alice@stanford.edu', '$2a$10$Azleswd6uoWZvARpfVCCa.9qbQU03OXQxHC/sRZIeH64.wystM09i', 'Alice Chen', 'STUDENT')
+    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash
     RETURNING id INTO s1_id;
 
     INSERT INTO users (email, password_hash, display_name, role)
-    VALUES ('bob@stanford.edu', '$2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC', 'Bob Miller', 'STUDENT')
-    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    VALUES ('bob@stanford.edu', '$2a$10$Azleswd6uoWZvARpfVCCa.9qbQU03OXQxHC/sRZIeH64.wystM09i', 'Bob Miller', 'STUDENT')
+    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash
     RETURNING id INTO s2_id;
 
     INSERT INTO users (email, password_hash, display_name, role)
-    VALUES ('charlie@stanford.edu', '$2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC', 'Charlie Patel', 'STUDENT')
-    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    VALUES ('charlie@stanford.edu', '$2a$10$Azleswd6uoWZvARpfVCCa.9qbQU03OXQxHC/sRZIeH64.wystM09i', 'Charlie Patel', 'STUDENT')
+    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash
     RETURNING id INTO s3_id;
 
     INSERT INTO users (email, password_hash, display_name, role)
-    VALUES ('diana@stanford.edu', '$2a$10$w8uDk2c6v2n7j2jR.9G16O1b/7r0eUjW9q6q8iP0sF2zH/YyUa4yC', 'Diana Prince', 'STUDENT')
-    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+    VALUES ('diana@stanford.edu', '$2a$10$Azleswd6uoWZvARpfVCCa.9qbQU03OXQxHC/sRZIeH64.wystM09i', 'Diana Prince', 'STUDENT')
+    ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash
     RETURNING id INTO s4_id;
 
     -- 5. Memberships
