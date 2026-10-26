@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eterno-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: eterno
+      POSTGRES_USER: eterno
+      POSTGRES_PASSWORD: eterno_secret
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - eterno_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eterno -d eterno"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api
+    container_name: eterno-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      ENV: production
+      DATABASE_URL: postgres://eterno:eterno_secret@postgres:5432/eterno?sslmode=disable
+      JWT_SECRET: production-secret-eterno-change-me-safely
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: worker
+    container_name: eterno-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://eterno:eterno_secret@postgres:5432/eterno?sslmode=disable
+      WORKER_CONCURRENCY: 5
+      WORKER_POLL_INTERVAL_SECONDS: 5
+
+volumes:
+  eterno_pg_data:
