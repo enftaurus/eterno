@@ -54,6 +54,21 @@ func (a *Adapter) SetMockSubmissions(username string, subs []models.SubmissionDT
 	a.mockStore[strings.ToLower(strings.TrimSpace(username))] = subs
 }
 
+func (a *Adapter) SetProxy(rawURL string) error {
+	if rawURL == "" {
+		a.httpClient.Transport = http.DefaultTransport
+		return nil
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid proxy URL %q: %w", rawURL, err)
+	}
+	a.httpClient.Transport = &http.Transport{
+		Proxy: http.ProxyURL(parsed),
+	}
+	return nil
+}
+
 func (a *Adapter) PlatformName() string {
 	return models.PlatformLeetCode
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -155,12 +156,13 @@ func (h *PlatformHandler) SyncLeetCode(c *gin.Context) {
 	userID := c.GetString("user_id")
 
 	var username, verifStatus string
+	var lastSyncAt sql.NullTime
 	query := `
-		SELECT username, verification_status
+		SELECT username, verification_status, last_sync_at
 		FROM platform_accounts
 		WHERE user_id = $1 AND platform = 'leetcode'
 	`
-	err := h.db.QueryRowContext(c.Request.Context(), query, userID).Scan(&username, &verifStatus)
+	err := h.db.QueryRowContext(c.Request.Context(), query, userID).Scan(&username, &verifStatus, &lastSyncAt)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No linked LeetCode account found"})
 		return
@@ -170,6 +172,16 @@ func (h *PlatformHandler) SyncLeetCode(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Account must be verified before synchronizing submissions",
 			"status": verifStatus,
+		})
+		return
+	}
+
+	// Rate-limit protection: Prevent spamming LeetCode by enforcing a 30-second cooldown per student
+	if lastSyncAt.Valid && time.Since(lastSyncAt.Time) < 30*time.Second {
+		remaining := int(30 - time.Since(lastSyncAt.Time).Seconds())
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error": fmt.Sprintf("Sync cooldown active. Please wait %d seconds before requesting another sync.", remaining),
+			"retry_after_seconds": remaining,
 		})
 		return
 	}
