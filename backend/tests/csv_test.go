@@ -237,8 +237,8 @@ func TestCSVQuotesAndCommasHandling(t *testing.T) {
 
 	uid := fmt.Sprintf("%d", time.Now().UnixNano())
 	csvData := fmt.Sprintf(`email,display_name,department,batch,student_id,leetcode_username
-"quoted_%s@college.edu","Smith, Alice M.","Computer Science, AI Track","Batch 2026, Section A","CS,101","alice_quoted"
-`, uid)
+"quoted_%s@college.edu","Smith, Alice M.","Computer Science, AI Track","Batch 2026, Section A","CS,101","alice_quoted_%s"
+`, uid, uid)
 
 	res, err := svc.ImportStudentsCSV(ctx, instID, strings.NewReader(csvData))
 	if err != nil {

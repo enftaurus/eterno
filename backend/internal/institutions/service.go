@@ -335,12 +335,17 @@ func (s *Service) ImportStudentsCSV(ctx context.Context, institutionID string, r
 
 			// Link platform account if provided
 			if lcUsername != "" {
-				paQuery := `
-					INSERT INTO platform_accounts (user_id, platform, username, verification_status)
-					VALUES ($1, 'leetcode', $2, 'UNVERIFIED')
-					ON CONFLICT (user_id, platform) DO NOTHING
-				`
-				_, _ = tx.ExecContext(ctx, paQuery, userID, lcUsername)
+				var existingID string
+				checkQuery := `SELECT id FROM platform_accounts WHERE platform = 'leetcode' AND (username = $1 OR user_id = $2) LIMIT 1`
+				err = tx.QueryRowContext(ctx, checkQuery, lcUsername, userID).Scan(&existingID)
+				if errors.Is(err, sql.ErrNoRows) {
+					paQuery := `
+						INSERT INTO platform_accounts (user_id, platform, username, verification_status)
+						VALUES ($1, 'leetcode', $2, 'UNVERIFIED')
+						ON CONFLICT DO NOTHING
+					`
+					_, _ = tx.ExecContext(ctx, paQuery, userID, lcUsername)
+				}
 			}
 
 			return nil
