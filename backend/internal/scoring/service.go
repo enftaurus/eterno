@@ -154,10 +154,13 @@ func CompareLeaderboardEntries(a, b models.LeaderboardEntry) bool {
 		return a.VerifiedCompletions > b.VerifiedCompletions
 	}
 	if a.LastVerifiedSolveAt != nil && b.LastVerifiedSolveAt != nil {
-		return a.LastVerifiedSolveAt.Before(*b.LastVerifiedSolveAt)
-	}
-	if a.LastVerifiedSolveAt != nil {
+		if !a.LastVerifiedSolveAt.Equal(*b.LastVerifiedSolveAt) {
+			return a.LastVerifiedSolveAt.Before(*b.LastVerifiedSolveAt)
+		}
+	} else if a.LastVerifiedSolveAt != nil {
 		return true
+	} else if b.LastVerifiedSolveAt != nil {
+		return false
 	}
 	return a.UserID < b.UserID
 }
