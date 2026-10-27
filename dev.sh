@@ -2,13 +2,13 @@
 
 # ==============================================================================
 # Eterno — Development Environment Orchestrator
-# Starts PostgreSQL (Docker), installs dependencies, runs migrations & seed,
+# Starts PostgreSQL (Docker), installs dependencies, runs versioned migrations,
 # and starts the Backend API, Background Worker, and React Frontend.
+# Demo fixtures are strictly opt-in via: ./dev.sh --seed
 # ==============================================================================
 
 set -eo pipefail
 
-# ANSI Color codes for clean output
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -16,6 +16,16 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+OPT_SEED=false
+for arg in "$@"; do
+    case $arg in
+        --seed)
+            OPT_SEED=true
+            shift
+            ;;
+    esac
+done
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
@@ -102,29 +112,35 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
 fi
 echo -e "  ✔ PostgreSQL is ready."
 
-# 2. Database Migrations and Demo Seed
-echo -e "\n${BLUE}[3/5] Verifying database schema and seed data...${NC}"
+# 2. Database Migrations and Fixture Handling
+echo -e "\n${BLUE}[3/5] Verifying database schema...${NC}"
 HAS_TABLES=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT to_regclass('institutions');" 2>/dev/null || true)
 
 if [ "$HAS_TABLES" != "institutions" ]; then
-    echo -e "  Applying initial database schema migration (000001_initial_schema.up.sql)..."
+    echo -e "  Applying versioned database schema migration (000001_initial_schema.up.sql)..."
     docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$PROJECT_ROOT/backend/migrations/000001_initial_schema.up.sql" >/dev/null
     echo -e "  ✔ Schema created."
 fi
 
-USER_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM users;" 2>/dev/null || echo "0")
-if [ "$USER_COUNT" -eq "0" ]; then
-    echo -e "  Applying demonstration seed data for Stanford School of Engineering (seed.sql)..."
-    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$PROJECT_ROOT/backend/migrations/seed.sql" >/dev/null
-    echo -e "  ✔ Demo dataset applied."
+# Apply optional demo fixtures ONLY if explicitly requested via --seed
+if [ "$OPT_SEED" = true ]; then
+    USER_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM users;" 2>/dev/null || echo "0")
+    if [ "$USER_COUNT" -eq "0" ]; then
+        echo -e "  Applying demonstration fixtures (--seed requested)..."
+        docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$PROJECT_ROOT/backend/migrations/seed.sql" >/dev/null
+        echo -e "  ✔ Demo dataset applied."
+    else
+        echo -e "  ✔ Database already contains user records (${USER_COUNT} users); skipping seed."
+    fi
 else
-    echo -e "  ✔ Database schema and seed data verified (${USER_COUNT} users registered)."
+    USER_COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT count(*) FROM users;" 2>/dev/null || echo "0")
+    echo -e "  ✔ Schema verified (found ${USER_COUNT} users). Demo fixtures not loaded (use --seed to load demo data)."
 fi
 
 # 3. Dependencies & Build
 echo -e "\n${BLUE}[4/5] Installing dependencies and building binaries...${NC}"
 
-echo -e "  Backend: Downloading Go modules and building binaries..."
+echo -e "  Backend: Downloading Go modules and compiling binaries..."
 cd "$PROJECT_ROOT/backend"
 go mod download
 mkdir -p bin
@@ -140,15 +156,26 @@ echo -e "  ✔ Frontend dependencies installed."
 # 4. Service Startup & Process Management
 echo -e "\n${BLUE}[5/5] Launching all services...${NC}"
 
-# Check for stale processes on port 8080 and port 5173
-if lsof -ti:8080 &>/dev/null; then
-    echo -e "${YELLOW}  Freeing port 8080 from previous process...${NC}"
-    kill -9 $(lsof -ti:8080) 2>/dev/null || true
-fi
-if lsof -ti:5173 &>/dev/null; then
-    echo -e "${YELLOW}  Freeing port 5173 from previous process...${NC}"
-    kill -9 $(lsof -ti:5173) 2>/dev/null || true
-fi
+# Safe check for previous Eterno processes on port 8080 and 5173
+free_port_safe() {
+    local port=$1
+    local pids
+    pids=$(lsof -ti:"$port" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            local cmd
+            cmd=$(ps -p "$pid" -o comm= 2>/dev/null || true)
+            if [[ "$cmd" =~ (api|worker|node|vite) ]]; then
+                echo -e "${YELLOW}  Freeing port ${port} from previous Eterno process (${cmd} PID: ${pid})...${NC}"
+                kill "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 0.5
+    fi
+}
+
+free_port_safe 8080
+free_port_safe 5173
 
 # Process cleanup handler
 PIDS=()
@@ -165,13 +192,14 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM EXIT
 
-# Start API Server
+# Configure environment variables
 export PORT="8080"
 export ENV="development"
 export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@127.0.0.1:${DB_PORT}/${DB_NAME}?sslmode=disable"
-export JWT_SECRET="eterno-super-secret-jwt-key-2026-production-ready"
+export JWT_SECRET="eterno-dev-only-secret-do-not-use-in-production"
 export CORS_ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
-export MOCK_EXTERNAL_PROVIDERS="true"
+# Default to REAL-PROVIDER mode. Can be overridden by user setting MOCK_EXTERNAL_PROVIDERS=true in shell
+export MOCK_EXTERNAL_PROVIDERS="${MOCK_EXTERNAL_PROVIDERS:-false}"
 
 "$PROJECT_ROOT/backend/bin/api" > "$PROJECT_ROOT/backend.log" 2>&1 &
 API_PID=$!
@@ -201,7 +229,6 @@ FRONTEND_PID=$!
 PIDS+=("$FRONTEND_PID")
 echo -e "  ✔ React Frontend Dev Server started on port 5173 (PID: ${FRONTEND_PID})"
 
-# Wait briefly for Vite to spin up
 sleep 1
 
 echo -e "\n${BOLD}${GREEN}================================================================${NC}"
@@ -211,14 +238,9 @@ echo -e "  🌐 ${BOLD}Frontend Portal:${NC}    ${CYAN}http://localhost:5173${NC
 echo -e "  ⚡ ${BOLD}Backend REST API:${NC}   ${CYAN}http://127.0.0.1:8080/api/v1${NC}"
 echo -e "  🩺 ${BOLD}Health Endpoint:${NC}    ${CYAN}http://127.0.0.1:8080/healthz${NC}"
 echo -e "  🐘 ${BOLD}PostgreSQL DB:${NC}      ${CYAN}127.0.0.1:5434 (${DB_NAME})${NC}"
+echo -e "  🛡️  ${BOLD}Mock Mode:${NC}          ${CYAN}${MOCK_EXTERNAL_PROVIDERS}${NC}"
 echo -e "  📄 ${BOLD}Logs Available:${NC}     backend.log, worker.log, frontend.log"
-echo -e ""
-echo -e "  ${BOLD}Demo Credentials (Stanford Engineering):${NC}"
-echo -e "  👤 ${BOLD}College Admin:${NC}      admin@stanford.edu  / Password123!"
-echo -e "  👤 ${BOLD}Student (Alice):${NC}    alice@stanford.edu  / Password123!"
-echo -e "  👤 ${BOLD}Student (Bob):${NC}      bob@stanford.edu    / Password123!"
 echo -e "${BOLD}${GREEN}================================================================${NC}"
 echo -e "${YELLOW}Press [Ctrl+C] at any time to gracefully stop all services.${NC}\n"
 
-# Keep script running to monitor child processes and stream logs if desired
 wait
