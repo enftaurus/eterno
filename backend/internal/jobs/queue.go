@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/eterno/backend/internal/models"
 )
@@ -17,7 +19,34 @@ func NewQueue(db *sql.DB) *Queue {
 	return &Queue{db: db}
 }
 
+// Enqueue queues a job idempotently. If an identical active job (PENDING or RUNNING) already exists,
+// it returns the existing job to prevent queue spamming and duplicate sync processing.
 func (q *Queue) Enqueue(ctx context.Context, userID, platform, jobType string, payload map[string]interface{}) (*models.SyncJob, error) {
+	// Check for existing active job
+	checkQuery := `
+		SELECT id, user_id, platform, job_type, status, retry_count, max_retries,
+		       next_run_at, locked_at, locked_by, payload, created_at, updated_at
+		FROM sync_jobs
+		WHERE user_id = $1 AND platform = $2 AND job_type = $3 AND status IN ('PENDING', 'RUNNING')
+		LIMIT 1
+	`
+	var existing models.SyncJob
+	var lockedAt sql.NullTime
+	var lockedBy sql.NullString
+	var rawPayload []byte
+
+	err := q.db.QueryRowContext(ctx, checkQuery, userID, platform, jobType).Scan(
+		&existing.ID, &existing.UserID, &existing.Platform, &existing.JobType, &existing.Status,
+		&existing.RetryCount, &existing.MaxRetries, &existing.NextRunAt, &lockedAt,
+		&lockedBy, &rawPayload, &existing.CreatedAt, &existing.UpdatedAt,
+	)
+	if err == nil {
+		existing.Payload = rawPayload
+		return &existing, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to check existing sync job: %w", err)
+	}
+
 	payloadJSON, _ := json.Marshal(payload)
 	query := `
 		INSERT INTO sync_jobs (user_id, platform, job_type, status, next_run_at, payload)
@@ -26,11 +55,8 @@ func (q *Queue) Enqueue(ctx context.Context, userID, platform, jobType string, p
 		          next_run_at, locked_at, locked_by, payload, created_at, updated_at
 	`
 	var job models.SyncJob
-	var lockedAt sql.NullTime
-	var lockedBy sql.NullString
-	var rawPayload []byte
 
-	err := q.db.QueryRowContext(ctx, query, userID, platform, jobType, payloadJSON).Scan(
+	err = q.db.QueryRowContext(ctx, query, userID, platform, jobType, payloadJSON).Scan(
 		&job.ID, &job.UserID, &job.Platform, &job.JobType, &job.Status,
 		&job.RetryCount, &job.MaxRetries, &job.NextRunAt, &lockedAt,
 		&lockedBy, &rawPayload, &job.CreatedAt, &job.UpdatedAt,
@@ -43,7 +69,34 @@ func (q *Queue) Enqueue(ctx context.Context, userID, platform, jobType string, p
 	return &job, nil
 }
 
+// RecoverStaleJobs reclaims jobs that have been RUNNING longer than leaseDuration without completion,
+// resetting them to PENDING so they can be picked up by surviving workers.
+func (q *Queue) RecoverStaleJobs(ctx context.Context, leaseDuration time.Duration) (int64, error) {
+	if leaseDuration <= 0 {
+		leaseDuration = 5 * time.Minute
+	}
+	cutoff := time.Now().UTC().Add(-leaseDuration)
+
+	query := `
+		UPDATE sync_jobs
+		SET status = CASE WHEN retry_count + 1 >= max_retries THEN 'FAILED' ELSE 'PENDING' END,
+		    retry_count = retry_count + 1,
+		    locked_at = NULL,
+		    locked_by = NULL,
+		    updated_at = NOW()
+		WHERE status = 'RUNNING' AND locked_at < $1
+	`
+	res, err := q.db.ExecContext(ctx, query, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("failed to recover stale jobs: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 func (q *Queue) ClaimNextJob(ctx context.Context, workerID string) (*models.SyncJob, error) {
+	// First, recover any stale leases (>5 minutes old)
+	_, _ = q.RecoverStaleJobs(ctx, 5*time.Minute)
+
 	tx, err := q.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, err

@@ -114,13 +114,12 @@ echo -e "  ✔ PostgreSQL is ready."
 
 # 2. Database Migrations and Fixture Handling
 echo -e "\n${BLUE}[3/5] Verifying database schema...${NC}"
-HAS_TABLES=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT to_regclass('institutions');" 2>/dev/null || true)
-
-if [ "$HAS_TABLES" != "institutions" ]; then
-    echo -e "  Applying versioned database schema migration (000001_initial_schema.up.sql)..."
-    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$PROJECT_ROOT/backend/migrations/000001_initial_schema.up.sql" >/dev/null
-    echo -e "  ✔ Schema created."
-fi
+echo -e "  Applying versioned database schema migrations..."
+for mig in $(ls "$PROJECT_ROOT/backend/migrations/"*.up.sql | sort); do
+    mig_name=$(basename "$mig")
+    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" < "$mig" >/dev/null 2>&1 || true
+    echo -e "  ✔ Migration applied: ${mig_name}"
+done
 
 # Apply optional demo fixtures ONLY if explicitly requested via --seed
 if [ "$OPT_SEED" = true ]; then
