@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -188,21 +190,29 @@ type CSVImportResult struct {
 }
 
 func (s *Service) ImportStudentsCSV(ctx context.Context, institutionID string, r io.Reader) (*CSVImportResult, error) {
-	csvReader := csv.NewReader(r)
+	// Bounded read: Max 2MB CSV file to prevent memory exhaustion
+	limitReader := io.LimitReader(r, 2*1024*1024)
+	csvReader := csv.NewReader(limitReader)
 	records, err := csvReader.ReadAll()
 	if err != nil {
-		return nil, fmt.Errorf("invalid CSV format: %w", err)
+		return nil, fmt.Errorf("invalid CSV format or file exceeds 2MB limit: %w", err)
 	}
 
 	if len(records) < 2 {
-		return &CSVImportResult{TotalRows: 0, Imported: 0, Skipped: 0, Errors: []string{"CSV must contain header and at least one student row"}}, nil
+		return &CSVImportResult{TotalRows: 0, Imported: 0, Skipped: 0, Errors: []string{"CSV must contain a header row and at least one student data row"}}, nil
 	}
 
-	// Expected headers: email, display_name, department, batch, student_id, leetcode_username
+	if len(records) > 1001 {
+		return nil, errors.New("CSV exceeds maximum batch limit of 1000 student records")
+	}
+
 	result := &CSVImportResult{
 		TotalRows: len(records) - 1,
 		Errors:    make([]string, 0),
 	}
+
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	seenEmails := make(map[string]int)
 
 	for i, row := range records[1:] {
 		rowNum := i + 2
@@ -236,6 +246,29 @@ func (s *Service) ImportStudentsCSV(ctx context.Context, institutionID string, r
 			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: email and display_name must not be empty", rowNum))
 			result.Skipped++
 			continue
+		}
+
+		// Security: Validate email format
+		if !emailRegex.MatchString(email) {
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: invalid email address %q", rowNum, email))
+			result.Skipped++
+			continue
+		}
+
+		// Security: Prevent duplicate emails within same CSV file
+		if prevRow, exists := seenEmails[email]; exists {
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: duplicate email %q (already seen at row %d)", rowNum, email, prevRow))
+			result.Skipped++
+			continue
+		}
+		seenEmails[email] = rowNum
+
+		// Security: Sanitize formula injection prefixes in text fields
+		for _, prefix := range []string{"=", "+", "-", "@", "\t", "\r"} {
+			if strings.HasPrefix(displayName, prefix) {
+				displayName = "'" + displayName
+				break
+			}
 		}
 
 		err = database.WithTx(ctx, s.db, func(tx *sql.Tx) error {

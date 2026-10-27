@@ -9,14 +9,16 @@ export const StudentLeaderboards: React.FC = () => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [timeframe, setTimeframe] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLeaderboard = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await api.get<LeaderboardEntry[]>(`/leaderboards?timeframe=${timeframe}`);
       setEntries(data || []);
-    } catch (err) {
-      console.error('Failed to load leaderboard', err);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load leaderboard standings');
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +72,15 @@ export const StudentLeaderboards: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={fetchLeaderboard} className="font-semibold underline ml-4">
+            Retry
+          </button>
+        </div>
+      )}
+
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -107,7 +118,7 @@ export const StudentLeaderboards: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-neutral-500">
-                      {e.department_name || 'General CS'} • {e.batch_name || 'Batch 2026'}
+                      {[e.department_name, e.batch_name].filter(Boolean).join(' • ') || '—'}
                     </td>
                     <td className="py-3 px-4 text-right font-medium text-neutral-800">
                       {e.verified_completions} solved

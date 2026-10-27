@@ -8,19 +8,22 @@ import { Flame, CheckCircle2, Trophy, Activity, TrendingUp } from 'lucide-react'
 export const AdminConsistency: React.FC = () => {
   const [topConsistent, setTopConsistent] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchConsistency = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.get<LeaderboardEntry[]>('/leaderboards?timeframe=monthly&limit=20');
+      setTopConsistent(data || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load consistency analytics');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchConsistency = async () => {
-      setIsLoading(true);
-      try {
-        const data = await api.get<LeaderboardEntry[]>('/leaderboards?timeframe=monthly&limit=20');
-        setTopConsistent(data || []);
-      } catch (err) {
-        console.error('Failed to load consistency data', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchConsistency();
   }, []);
 
@@ -56,6 +59,15 @@ export const AdminConsistency: React.FC = () => {
         </Card>
       </div>
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={fetchConsistency} className="font-semibold underline ml-4">
+            Retry
+          </button>
+        </div>
+      )}
+
       <Card>
         <CardHeader
           title="Most Consistent Students (Last 30 Days)"
@@ -87,7 +99,7 @@ export const AdminConsistency: React.FC = () => {
                   <tr key={s.user_id} className="hover:bg-neutral-50/50 transition-colors">
                     <td className="py-3 px-4 font-bold text-neutral-400">#{idx + 1}</td>
                     <td className="py-3 px-4 font-semibold text-neutral-900">{s.display_name}</td>
-                    <td className="py-3 px-4 text-neutral-500">{s.department_name || 'General CS'} • {s.batch_name || 'Class of 2026'}</td>
+                    <td className="py-3 px-4 text-neutral-500">{[s.department_name, s.batch_name].filter(Boolean).join(' • ') || '—'}</td>
                     <td className="py-3 px-4 text-right font-medium text-neutral-800">{s.verified_completions} problems</td>
                     <td className="py-3 px-4 text-right font-bold text-indigo-600">+{s.total_points} pts</td>
                   </tr>

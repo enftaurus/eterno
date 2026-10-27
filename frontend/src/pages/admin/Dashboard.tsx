@@ -22,14 +22,16 @@ export const AdminDashboard: React.FC = () => {
   const { institution } = useAuth();
   const [metrics, setMetrics] = useState<DashboardOverviewMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await api.get<DashboardOverviewMetrics>('/admin/dashboard');
       setMetrics(data);
-    } catch (err) {
-      console.error('Failed to load admin dashboard', err);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load institutional dashboard metrics');
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +48,7 @@ export const AdminDashboard: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Institutional Performance Overview</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Real-time analytics for {institution?.name || 'Stanford School of Engineering'}. All metrics reflect actual server verification records.
+            Real-time analytics for {institution?.name || 'Your Institution'}. All metrics reflect actual server verification records.
           </p>
         </div>
 
@@ -58,6 +60,18 @@ export const AdminDashboard: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={fetchDashboard}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Row 1: Primary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -167,7 +181,7 @@ export const AdminDashboard: React.FC = () => {
                           {sub.verdict}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-neutral-500">{sub.language || 'golang'}</td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-neutral-500">{sub.language || 'Unknown'}</td>
                       <td className="py-2.5 px-3 text-neutral-400">
                         {new Date(sub.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>

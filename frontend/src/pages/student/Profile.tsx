@@ -67,7 +67,7 @@ export const StudentProfile: React.FC = () => {
               <div className="flex items-center gap-3 mt-2 text-xs text-neutral-500">
                 <span className="flex items-center gap-1">
                   <Building className="w-3.5 h-3.5 text-neutral-400" />
-                  {institution?.name || 'Stanford Engineering'}
+                  {institution?.name || '—'}
                 </span>
               </div>
             </div>

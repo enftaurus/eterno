@@ -12,15 +12,17 @@ export const StudentActivityHeatmap: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [year, setYear] = useState<number>(2026);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchHeatmap = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const url = `/me/heatmap?year=${year}${selectedSource ? `&source=${selectedSource}` : ''}`;
       const data = await api.get<HeatmapResponse>(url);
       setHeatmap(data);
-    } catch (err) {
-      console.error('Failed to load activity heatmap', err);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load activity heatmap');
     } finally {
       setIsLoading(false);
     }
@@ -29,6 +31,9 @@ export const StudentActivityHeatmap: React.FC = () => {
   useEffect(() => {
     fetchHeatmap();
   }, [year, selectedSource]);
+
+  const leetcodeEventsCount = (heatmap?.days || []).reduce((acc, d) => acc + (d.source_breakdown?.leetcode || 0), 0);
+  const activeDaysCount = (heatmap?.days || []).filter((d) => d.count > 0).length;
 
   return (
     <div className="space-y-6">
@@ -52,6 +57,17 @@ export const StudentActivityHeatmap: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>{error}</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={fetchHeatmap}>
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Cross-Platform Analytics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex items-center gap-4">
@@ -60,8 +76,10 @@ export const StudentActivityHeatmap: React.FC = () => {
           </div>
           <div>
             <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">LeetCode Solves</span>
-            <p className="text-xl font-bold text-neutral-900">142 <span className="text-xs font-normal text-neutral-400">problems</span></p>
-            <span className="text-[10px] text-emerald-600 font-medium">Rank ~45,200</span>
+            <p className="text-xl font-bold text-neutral-900">
+              {isLoading ? '—' : leetcodeEventsCount} <span className="text-xs font-normal text-neutral-400">verified</span>
+            </p>
+            <span className="text-[10px] text-emerald-600 font-medium">Server verified</span>
           </div>
         </Card>
 
@@ -70,9 +88,12 @@ export const StudentActivityHeatmap: React.FC = () => {
             <GitCommit className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">GitHub Commits</span>
-            <p className="text-xl font-bold text-neutral-900">412 <span className="text-xs font-normal text-neutral-400">commits</span></p>
-            <span className="text-[10px] text-neutral-500 font-medium">28 public repos</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">GitHub Commits</span>
+              <Badge variant="neutral" size="sm">Upcoming</Badge>
+            </div>
+            <p className="text-xs font-medium text-neutral-500 mt-1">Integration in beta</p>
+            <span className="text-[10px] text-neutral-400">Webhook crawler in v2</span>
           </div>
         </Card>
 
@@ -81,9 +102,12 @@ export const StudentActivityHeatmap: React.FC = () => {
             <Trophy className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Codeforces Rating</span>
-            <p className="text-xl font-bold text-neutral-900">1,480</p>
-            <span className="text-[10px] text-indigo-600 font-medium">Specialist</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Codeforces</span>
+              <Badge variant="neutral" size="sm">Upcoming</Badge>
+            </div>
+            <p className="text-xs font-medium text-neutral-500 mt-1">Rating sync in beta</p>
+            <span className="text-[10px] text-neutral-400">Contest tracker in v2</span>
           </div>
         </Card>
 
@@ -92,9 +116,11 @@ export const StudentActivityHeatmap: React.FC = () => {
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Total Recorded Events</span>
-            <p className="text-xl font-bold text-neutral-900">{heatmap?.total_events || 0}</p>
-            <span className="text-[10px] text-neutral-400 font-medium">across all connected sources</span>
+            <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Active Days & Events</span>
+            <p className="text-xl font-bold text-neutral-900">
+              {isLoading ? '—' : activeDaysCount} <span className="text-xs font-normal text-neutral-400">days ({heatmap?.total_events ?? 0} events)</span>
+            </p>
+            <span className="text-[10px] text-neutral-400 font-medium">persisted in PostgreSQL</span>
           </div>
         </Card>
       </div>

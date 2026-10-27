@@ -210,6 +210,31 @@ export const StudentConnectedAccounts: React.FC = () => {
         </div>
       </Card>
 
+      {/* GitHub & Codeforces Integrations (Roadmap / Beta) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader
+            title="GitHub Integration"
+            subtitle="Repository commit tracking and pull request analytics"
+            action={<Badge variant="neutral" size="sm">Upcoming</Badge>}
+          />
+          <div className="mt-2 text-xs text-neutral-500">
+            <p>OAuth app and webhook receiver scheduled for Eterno v2. Commit counts will contribute to your unified developer heatmap.</p>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Codeforces Integration"
+            subtitle="Contest rating synchronization and problem solves"
+            action={<Badge variant="neutral" size="sm">Upcoming</Badge>}
+          />
+          <div className="mt-2 text-xs text-neutral-500">
+            <p>Codeforces public API crawler scheduled for Eterno v2. Contest standings will be integrated into institutional leaderboards.</p>
+          </div>
+        </Card>
+      </div>
+
       {/* Modal: Link LeetCode */}
       <Modal
         isOpen={showLinkModal}

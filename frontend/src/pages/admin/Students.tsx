@@ -72,28 +72,47 @@ export const AdminStudents: React.FC = () => {
     }
   };
 
+  const sanitizeCSVCell = (val: string | number | undefined | null): string => {
+    if (val === undefined || val === null) return '""';
+    let str = String(val);
+    // Security: Prevent CSV / spreadsheet formula injection
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = "'" + str;
+    }
+    // Escape internal double quotes by doubling them
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
   const handleExportCSV = () => {
-    if (students.length === 0) return;
+    if (students.length === 0) {
+      alert('No students available to export.');
+      return;
+    }
     const headers = ['Email', 'Name', 'Department', 'Batch', 'Student ID', 'LeetCode Username', 'Verified Solves', 'Total Points'];
     const rows = students.map((s) => [
-      s.email,
-      s.display_name,
-      s.department_name || '',
-      s.batch_name || '',
-      s.student_id_number || '',
-      s.leetcode_username || '',
-      s.verified_solves_count,
-      s.total_points,
+      sanitizeCSVCell(s.email),
+      sanitizeCSVCell(s.display_name),
+      sanitizeCSVCell(s.department_name || ''),
+      sanitizeCSVCell(s.batch_name || ''),
+      sanitizeCSVCell(s.student_id_number || ''),
+      sanitizeCSVCell(s.leetcode_username || ''),
+      sanitizeCSVCell(s.verified_solves_count),
+      sanitizeCSVCell(s.total_points),
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].map((e) => e.join(',')).join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const headerRow = headers.map((h) => sanitizeCSVCell(h)).join(',');
+    const bodyRows = rows.map((r) => r.join(',')).join('\r\n');
+    const csvContent = '\uFEFF' + headerRow + '\r\n' + bodyRows; // UTF-8 BOM for Excel compatibility
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `eterno-students-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (

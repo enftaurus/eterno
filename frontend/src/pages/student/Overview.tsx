@@ -18,9 +18,11 @@ export const StudentOverview: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const [assignRes, streakRes, heatRes, subsRes] = await Promise.all([
         api.get<ChallengeAssignment[]>('/me/challenges'),
@@ -32,8 +34,8 @@ export const StudentOverview: React.FC = () => {
       setStreaks(streakRes);
       setHeatmap(heatRes);
       setRecentSubmissions(subsRes || []);
-    } catch (err) {
-      console.error('Failed to load overview data', err);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load student overview data');
     } finally {
       setIsLoading(false);
     }
@@ -105,6 +107,15 @@ export const StudentOverview: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={fetchData} className="font-semibold underline ml-4">
+            Retry
+          </button>
+        </div>
+      )}
+
       {syncFeedback && (
         <div className="p-3 bg-neutral-50 border border-neutral-200 text-xs text-neutral-700 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -122,8 +133,12 @@ export const StudentOverview: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Active Streak</span>
             <Flame className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">{streaks?.current_streak || 0} <span className="text-xs font-normal text-neutral-500">days</span></p>
-          <p className="text-[11px] text-neutral-400 mt-1">Longest: {streaks?.longest_streak || 0} consecutive days</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-2">
+            {isLoading ? '—' : (streaks?.current_streak ?? 0)} <span className="text-xs font-normal text-neutral-500">days</span>
+          </p>
+          <p className="text-[11px] text-neutral-400 mt-1">
+            Longest: {isLoading ? '—' : (streaks?.longest_streak ?? 0)} consecutive days
+          </p>
         </Card>
 
         <Card>
@@ -131,8 +146,12 @@ export const StudentOverview: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">7-Day Participation</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">{streaks?.active_days_last_7 || 0} / 7 <span className="text-xs font-normal text-neutral-500">days</span></p>
-          <p className="text-[11px] text-neutral-400 mt-1">{streaks?.weekly_participation_rate?.toFixed(0) || 0}% weekly consistency</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-2">
+            {isLoading ? '—' : (streaks?.active_days_last_7 ?? 0)} / 7 <span className="text-xs font-normal text-neutral-500">days</span>
+          </p>
+          <p className="text-[11px] text-neutral-400 mt-1">
+            {isLoading ? '—' : (streaks?.weekly_participation_rate != null ? `${streaks.weekly_participation_rate.toFixed(0)}%` : '—')} weekly consistency
+          </p>
         </Card>
 
         <Card>
@@ -140,8 +159,12 @@ export const StudentOverview: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Completed Challenges</span>
             <Trophy className="w-4 h-4 text-indigo-600" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">{completedAssignments.length} <span className="text-xs font-normal text-neutral-500">verified</span></p>
-          <p className="text-[11px] text-neutral-400 mt-1">Completion rate: {streaks?.challenge_completion_rate?.toFixed(0) || 0}%</p>
+          <p className="text-2xl font-bold text-neutral-900 mt-2">
+            {isLoading ? '—' : completedAssignments.length} <span className="text-xs font-normal text-neutral-500">verified</span>
+          </p>
+          <p className="text-[11px] text-neutral-400 mt-1">
+            Completion rate: {isLoading ? '—' : (streaks?.challenge_completion_rate != null ? `${streaks.challenge_completion_rate.toFixed(0)}%` : '—')}
+          </p>
         </Card>
 
         <Card>

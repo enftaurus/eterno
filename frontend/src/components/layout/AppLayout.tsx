@@ -85,7 +85,7 @@ export const AppLayout: React.FC = () => {
             {/* Institution Badge */}
             <div className="flex items-center gap-2 pl-3 border-l border-neutral-200/80 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="font-medium text-neutral-700">{institution?.name || 'Stanford Engineering'}</span>
+              <span className="font-medium text-neutral-700">{institution?.name || 'Institution'}</span>
             </div>
           </div>
         </header>

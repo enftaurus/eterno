@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { api } from '../../lib/api';
 import { Code2 } from 'lucide-react';
+
+interface InstitutionOption {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('STUDENT');
+  const [institutionSlug, setInstitutionSlug] = useState('');
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [departmentName, setDepartmentName] = useState('Computer Science');
   const [batchName, setBatchName] = useState('Batch of 2026');
   const [studentID, setStudentID] = useState('');
@@ -19,8 +28,28 @@ export const Register: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const fetchInstitutions = async () => {
+      try {
+        const list = await api.get<InstitutionOption[]>('/auth/institutions');
+        if (list && list.length > 0) {
+          setInstitutions(list);
+          setInstitutionSlug(list[0].slug);
+        }
+      } catch (err) {
+        // Fallback gracefully without throwing
+      }
+    };
+    fetchInstitutions();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!institutionSlug) {
+      setError('Please select or enter your institution slug');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -28,7 +57,7 @@ export const Register: React.FC = () => {
         email,
         password,
         display_name: displayName,
-        institution_slug: 'stanford-engineering',
+        institution_slug: institutionSlug,
         role,
         department_name: departmentName,
         batch_name: batchName,
@@ -42,6 +71,8 @@ export const Register: React.FC = () => {
     }
   };
 
+  const selectedInstName = institutions.find((i) => i.slug === institutionSlug)?.name;
+
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -50,7 +81,7 @@ export const Register: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Create your Eterno Account</h2>
         <p className="mt-1 text-xs text-neutral-500">
-          Enrolling into Stanford School of Engineering
+          {selectedInstName ? `Enrolling into ${selectedInstName}` : 'Select your institution to enroll'}
         </p>
       </div>
 
@@ -63,6 +94,32 @@ export const Register: React.FC = () => {
               </div>
             )}
 
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-1.5">
+                Institution
+              </label>
+              {institutions.length > 0 ? (
+                <select
+                  value={institutionSlug}
+                  onChange={(e) => setInstitutionSlug(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 text-sm px-3 py-2 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {institutions.map((inst) => (
+                    <option key={inst.id} value={inst.slug}>
+                      {inst.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  placeholder="e.g. stanford-engineering"
+                  value={institutionSlug}
+                  onChange={(e) => setInstitutionSlug(e.target.value)}
+                  required
+                />
+              )}
+            </div>
+
             <Input
               label="Full Display Name"
               placeholder="e.g. Maya Lin"
@@ -74,7 +131,7 @@ export const Register: React.FC = () => {
             <Input
               label="University Email"
               type="email"
-              placeholder="maya@stanford.edu"
+              placeholder="developer@college.edu"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
