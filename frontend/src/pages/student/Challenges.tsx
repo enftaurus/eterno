@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { api } from '../../lib/api';
 import { ChallengeAssignment } from '../../types';
 import { Link } from 'react-router-dom';
-import { Code2, Clock, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Code2, Clock, CheckCircle2, AlertCircle, ArrowRight, Users } from 'lucide-react';
 
 export const StudentChallenges: React.FC = () => {
   const [assignments, setAssignments] = useState<ChallengeAssignment[]>([]);
@@ -87,13 +87,18 @@ export const StudentChallenges: React.FC = () => {
               </div>
 
               <div className="mt-5 pt-4 border-t border-neutral-100 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-xs text-neutral-500">
+                <div className="flex flex-wrap items-center gap-2.5 text-xs text-neutral-500">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-neutral-400" />
                     {new Date(ch.deadline || '').toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <span>•</span>
                   <span className="font-semibold text-indigo-600">+{ch.max_points} pts</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 font-medium text-emerald-600">
+                    <Users className="w-3.5 h-3.5" />
+                    {ch.completed_count || 0} solved
+                  </span>
                 </div>
 
                 <Link to={`/challenges/${ch.challenge_id}`}>

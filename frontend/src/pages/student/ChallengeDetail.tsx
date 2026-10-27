@@ -5,7 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { api } from '../../lib/api';
 import { Challenge, ChallengeAssignment, ChallengeProblem } from '../../types';
-import { ExternalLink, CheckCircle2, Clock, ShieldCheck, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { ExternalLink, CheckCircle2, Clock, ShieldCheck, RefreshCw, AlertCircle, ArrowLeft, Users } from 'lucide-react';
 
 interface ProblemDetail extends ChallengeProblem {
   is_verified?: boolean;
@@ -134,6 +134,11 @@ export const StudentChallengeDetail: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-indigo-500" />
             <span>Reward: <strong className="text-indigo-600">+{challenge.max_points} points</strong></span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-emerald-500" />
+            <span>Completions: <strong className="text-emerald-700 font-bold">{challenge.completed_count || 0} students</strong>{challenge.assigned_count ? ` of ${challenge.assigned_count}` : ''}</span>
           </div>
 
           <div>

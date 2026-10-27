@@ -247,18 +247,21 @@ func (s *Service) GetProblemsForChallenge(ctx context.Context, challengeID strin
 
 func (s *Service) ListChallengesForInstitution(ctx context.Context, institutionID string, statusFilter string) ([]models.Challenge, error) {
 	query := `
-		SELECT id, institution_id, title, description, instructions, challenge_type,
-		       status, start_time, deadline, scope_type, scope_id, max_points,
-		       historical_allowed, created_by, created_at, updated_at
-		FROM challenges
-		WHERE institution_id = $1
+		SELECT c.id, c.institution_id, c.title, c.description, c.instructions, c.challenge_type,
+		       c.status, c.start_time, c.deadline, c.scope_type, c.scope_id, c.max_points,
+		       c.historical_allowed, c.created_by, c.created_at, c.updated_at,
+		       COUNT(DISTINCT CASE WHEN ca.status = 'VERIFIED' THEN ca.user_id END)::int AS completed_count,
+		       COUNT(DISTINCT ca.id)::int AS assigned_count
+		FROM challenges c
+		LEFT JOIN challenge_assignments ca ON c.id = ca.challenge_id
+		WHERE c.institution_id = $1
 	`
 	args := []interface{}{institutionID}
 	if statusFilter != "" {
-		query += " AND status = $2"
+		query += " AND c.status = $2"
 		args = append(args, statusFilter)
 	}
-	query += " ORDER BY created_at DESC"
+	query += " GROUP BY c.id ORDER BY c.created_at DESC"
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -274,6 +277,7 @@ func (s *Service) ListChallengesForInstitution(ctx context.Context, institutionI
 			&ch.ID, &ch.InstitutionID, &ch.Title, &ch.Description, &instructions,
 			&ch.ChallengeType, &ch.Status, &ch.StartTime, &ch.Deadline, &ch.ScopeType,
 			&scopeID, &ch.MaxPoints, &ch.HistoricalAllowed, &createdBy, &ch.CreatedAt, &ch.UpdatedAt,
+			&ch.CompletedCount, &ch.AssignedCount,
 		); err != nil {
 			return nil, err
 		}
@@ -293,11 +297,15 @@ func (s *Service) ListChallengesForInstitution(ctx context.Context, institutionI
 
 func (s *Service) GetChallengeByID(ctx context.Context, challengeID string) (*models.Challenge, error) {
 	query := `
-		SELECT id, institution_id, title, description, instructions, challenge_type,
-		       status, start_time, deadline, scope_type, scope_id, max_points,
-		       historical_allowed, created_by, created_at, updated_at
-		FROM challenges
-		WHERE id = $1
+		SELECT c.id, c.institution_id, c.title, c.description, c.instructions, c.challenge_type,
+		       c.status, c.start_time, c.deadline, c.scope_type, c.scope_id, c.max_points,
+		       c.historical_allowed, c.created_by, c.created_at, c.updated_at,
+		       COUNT(DISTINCT CASE WHEN ca.status = 'VERIFIED' THEN ca.user_id END)::int AS completed_count,
+		       COUNT(DISTINCT ca.id)::int AS assigned_count
+		FROM challenges c
+		LEFT JOIN challenge_assignments ca ON c.id = ca.challenge_id
+		WHERE c.id = $1
+		GROUP BY c.id
 	`
 	var ch models.Challenge
 	var instructions, scopeID, createdBy sql.NullString
@@ -305,6 +313,7 @@ func (s *Service) GetChallengeByID(ctx context.Context, challengeID string) (*mo
 		&ch.ID, &ch.InstitutionID, &ch.Title, &ch.Description, &instructions,
 		&ch.ChallengeType, &ch.Status, &ch.StartTime, &ch.Deadline, &ch.ScopeType,
 		&scopeID, &ch.MaxPoints, &ch.HistoricalAllowed, &createdBy, &ch.CreatedAt, &ch.UpdatedAt,
+		&ch.CompletedCount, &ch.AssignedCount,
 	)
 	if err != nil {
 		return nil, err
@@ -332,7 +341,9 @@ func (s *Service) GetStudentAssignments(ctx context.Context, userID string) ([]m
 		SELECT ca.id, ca.challenge_id, ca.user_id, ca.institution_id, ca.status,
 		       ca.baseline_at, ca.assigned_at, ca.completed_at, ca.points_awarded,
 		       c.title, c.description, c.challenge_type, c.status AS challenge_status,
-		       c.start_time, c.deadline, c.max_points
+		       c.start_time, c.deadline, c.max_points,
+		       (SELECT COUNT(DISTINCT ca2.user_id) FROM challenge_assignments ca2 WHERE ca2.challenge_id = c.id AND ca2.status = 'VERIFIED')::int AS completed_count,
+		       (SELECT COUNT(DISTINCT ca2.id) FROM challenge_assignments ca2 WHERE ca2.challenge_id = c.id)::int AS assigned_count
 		FROM challenge_assignments ca
 		JOIN challenges c ON ca.challenge_id = c.id
 		WHERE ca.user_id = $1
@@ -353,12 +364,14 @@ func (s *Service) GetStudentAssignments(ctx context.Context, userID string) ([]m
 		var title, desc, chType, chStatus string
 		var startTime, deadline time.Time
 		var maxPoints int
+		var completedCount, assignedCount int
 
 		if err := rows.Scan(
 			&caID, &chID, &uID, &instID, &caStatus,
 			&baselineAt, &assignedAt, &completedAt, &pointsAwarded,
 			&title, &desc, &chType, &chStatus,
 			&startTime, &deadline, &maxPoints,
+			&completedCount, &assignedCount,
 		); err != nil {
 			return nil, err
 		}
@@ -379,6 +392,8 @@ func (s *Service) GetStudentAssignments(ctx context.Context, userID string) ([]m
 			"start_time":       startTime,
 			"deadline":         deadline,
 			"max_points":       maxPoints,
+			"completed_count":  completedCount,
+			"assigned_count":   assignedCount,
 		}
 		if completedAt.Valid {
 			item["completed_at"] = completedAt.Time

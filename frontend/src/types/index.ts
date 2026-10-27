@@ -83,6 +83,8 @@ export interface Challenge {
   created_by?: string | null;
   created_at: string;
   updated_at: string;
+  completed_count?: number;
+  assigned_count?: number;
   problems?: ChallengeProblem[];
 }
 
@@ -103,6 +105,8 @@ export interface ChallengeAssignment {
   start_time?: string;
   deadline?: string;
   max_points?: number;
+  completed_count?: number;
+  assigned_count?: number;
 }
 
 export interface Submission {

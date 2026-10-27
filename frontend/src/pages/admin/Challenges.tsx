@@ -158,6 +158,7 @@ export const AdminChallenges: React.FC = () => {
                 <th className="py-3 px-4 font-semibold">Scope</th>
                 <th className="py-3 px-4 font-semibold">Status</th>
                 <th className="py-3 px-4 font-semibold">Deadline</th>
+                <th className="py-3 px-4 font-semibold">Completions</th>
                 <th className="py-3 px-4 font-semibold text-right">Points</th>
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
               </tr>
@@ -165,11 +166,11 @@ export const AdminChallenges: React.FC = () => {
             <tbody className="divide-y divide-neutral-100 text-neutral-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-neutral-400">Loading challenges...</td>
+                  <td colSpan={8} className="text-center py-12 text-neutral-400">Loading challenges...</td>
                 </tr>
               ) : challenges.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-neutral-400">No challenges found matching this filter.</td>
+                  <td colSpan={8} className="text-center py-12 text-neutral-400">No challenges found matching this filter.</td>
                 </tr>
               ) : (
                 challenges.map((ch) => (
@@ -197,6 +198,12 @@ export const AdminChallenges: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-neutral-500">
                       {new Date(ch.deadline).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-emerald-600">{ch.completed_count || 0}</span>
+                        <span className="text-neutral-400 text-[11px]">/ {ch.assigned_count || 0} students</span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-indigo-600">
                       +{ch.max_points} pts

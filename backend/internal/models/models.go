@@ -148,6 +148,8 @@ type Challenge struct {
 	CreatedBy         *string            `json:"created_by"`
 	CreatedAt         time.Time          `json:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at"`
+	CompletedCount    int                `json:"completed_count"`
+	AssignedCount     int                `json:"assigned_count"`
 	Problems          []ChallengeProblem `json:"problems,omitempty"`
 }
 
