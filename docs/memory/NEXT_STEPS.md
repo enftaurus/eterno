@@ -2,20 +2,21 @@
 
 | Priority | Task | Target Module | Dependencies | Status | Acceptance Criteria |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **P0** | Database Schema Migration | `backend/migrations/` | PostgreSQL 16 | **COMPLETED** | All 19 tables, foreign keys, indexes, and constraints applied idempotently. |
-| **P0** | Go Domain Models & DB Layer | `backend/internal/database/`, `models/` | Migration 000001 | **COMPLETED** | Connection pooling, scan helpers, models matching schema. |
-| **P0** | Auth & RBAC Middleware | `backend/internal/auth/`, `middleware/` | Models | **COMPLETED** | JWT signing/claims, password hashing, tenant-scoping middleware. |
-| **P0** | Platform Adapters | `backend/internal/platforms/` | Models | **COMPLETED** | LeetCode provider adapter with bio verification token challenge & mock mode. |
-| **P0** | Challenge Management & Lifecycle | `backend/internal/challenges/` | DB Layer | **COMPLETED** | Challenge CRUD, LeetCode slug extraction, assignment creation on publish. |
-| **P0** | Ingestion & Verification Worker | `backend/internal/verification/`, `cmd/worker/` | DB Layer, Adapters | **COMPLETED** | Submissions persisted, deduplicated, verified against baseline, completions generated. |
-| **P0** | Scoring & Leaderboards | `backend/internal/scoring/`, `leaderboards/` | Verification | **COMPLETED** | Score events logged, deterministic tie-breaking rules applied. |
-| **P0** | Consistency Analytics | `backend/internal/analytics/` | Verification | **COMPLETED** | Streaks, active days in 7/30/90, completion rates calculated with zero hardcoded values. |
-| **P0** | Activity Events & Heatmap API | `backend/internal/activity/` | Models | **COMPLETED** | Normalized cross-platform events and daily aggregates. |
-| **P0** | REST API Handlers & Router | `backend/internal/http/`, `cmd/api/` | All internal packages | **COMPLETED** | Full REST surface under `/api/v1` matching spec. |
-| **P0** | React Frontend White-First UI | `frontend/src/` | API routes | **COMPLETED** | Student dashboard, challenges, admin portal, analytics, heatmap (clean Vite build). |
-| **P0** | Integration & End-to-End Tests | `backend/tests/` | API, Worker | **COMPLETED** | Full 13-step workflow test passes deterministically. |
+| **P0** | Zero-Mock Repository Audit | `docs/project-management/` | Repo codebase | **COMPLETED** | Comprehensive audit report (`ZERO_MOCK_AUDIT.md`) identifying 13 P0–P2 findings. |
+| **P0** | Hardened Configuration & Real Default | `backend/internal/config/` | Config | **COMPLETED** | Real provider default, strict parsing, production fail-safe for weak JWT/mock mode. |
+| **P0** | Test Fixture & Migration Separation | `backend/migrations/`, `dev.sh` | DB Layer | **COMPLETED** | Schema migrations free of demo data; opt-in `./dev.sh --seed`. |
+| **P0** | LeetCode Evidence Validation | `backend/internal/platforms/leetcode/` | Adapter | **COMPLETED** | Strict domain check, exact token boundary regex, future timestamp rejection, typed errors. |
+| **P0** | Multi-Challenge Verification | `backend/internal/verification/` | Service, Migration 000002 | **COMPLETED** | Evaluates all candidate challenges; exact time boundaries; atomic completion. |
+| **P0** | Queue Reliability & Stale Leases | `backend/internal/jobs/` | Queue | **COMPLETED** | `RecoverStaleJobs` reclaims crashed leases (>5m); idempotent `Enqueue`; terminal fail. |
+| **P0** | CSV Security & Sanitization | `backend/internal/institutions/`, `frontend/src/` | CSV Service | **COMPLETED** | Neutralize formula injection (`=, +, -, @`); enforce 2MB/1000 row bounds; regex email check. |
+| **P0** | Frontend Real-Data & Error Hardening | `frontend/src/pages/` | React App | **COMPLETED** | Removed fake static numbers; added error retry banners; dynamic institution endpoints. |
+| **P0** | Edge-Case Test Campaign (70+ Tests) | `backend/tests/` | All packages | **COMPLETED** | 100% test pass rate with `-race` across provider, verification, worker, csv, auth, analytics. |
 
-## Future Extensibility Roadmap (Post-v1)
-1. **GitHub PR Webhook Receiver**: Ingest commit and PR merge events directly via webhooks into `activity_events`.
-2. **Codeforces Rating Tracking**: Poll Codeforces API user ratings and contest submissions into unified developer profiles.
-3. **Automated Weekly Email Digest**: Dispatch weekly consistency reports to college administrators via background worker.
+## Release Candidate Readiness
+The platform has achieved **Release Candidate (RC-1)** status. All runtime mock behavior, synthetic metrics, and silent fallbacks have been eliminated. All state transitions, scoring events, and platform verifications are backed by validated PostgreSQL records.
+
+## Future Extensibility Roadmap (Post-Release)
+1. **GitHub PR & Commit Webhook Receiver**: Ingest live webhook payloads into `activity_events` with HMAC SHA-256 signature verification.
+2. **Codeforces Rating & Contest Ingestion**: Adapter polling Codeforces API contest ratings and submissions.
+3. **Automated Weekly Email Digest**: Background worker job dispatching student performance reports to college administrators via SMTP / SES.
+4. **Redis Cache Layer**: Optional read caching for global leaderboards when tenant concurrency exceeds 500 req/sec.
