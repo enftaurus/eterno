@@ -52,10 +52,31 @@ export const StudentConnectedAccounts: React.FC = () => {
 
   useEffect(() => {
     fetchAccounts();
+
     // Check if redirected from GitHub OAuth callback
     const params = new URLSearchParams(window.location.search);
     if (params.get('status') === 'github_connected') {
       setFeedback({ type: 'success', message: 'GitHub account connected via OAuth successfully!' });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('error')) {
+      setFeedback({ type: 'error', message: 'GitHub OAuth error: ' + decodeURIComponent(params.get('error')!) });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('code')) {
+      const code = params.get('code')!;
+      const state = params.get('state') || '';
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setIsConnectingGH(true);
+      api.post<{ message: string; username: string }>('/platforms/github/exchange', { code, state })
+        .then((res) => {
+          setFeedback({ type: 'success', message: `GitHub account @${res.username} connected successfully!` });
+          fetchAccounts();
+        })
+        .catch((err: any) => {
+          setFeedback({ type: 'error', message: err.message || 'Failed to exchange GitHub authorization code' });
+        })
+        .finally(() => {
+          setIsConnectingGH(false);
+        });
     }
   }, []);
 
