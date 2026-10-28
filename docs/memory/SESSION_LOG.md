@@ -67,4 +67,10 @@
   - Full Race Detector Verification: Ran `go test -v -count=1 -race ./...` across all 8 test files — 100% passed in 10.2s with 0 races and 0 failures.
   - Binary Builds: `go build ./cmd/...` and `go vet ./...` exited with code 0.
   - Frontend Build: `npm run build` completed cleanly in 1.52s with 0 errors.
-- **Commits Created**: 16 granular commits on `main`.
+- **Commits Created**: 21 granular commits on `main`.
+- **OAuth Callback & Admin Portal Hardening (Commits 18–21)**:
+  - Root OAuth Callback Routing: Registered `/auth/github/callback`, `/github/callback`, and `/callback` directly on Gin engine so that callbacks to port 8080 redirect properly rather than returning 404.
+  - Role-Based Home Screen: Replaced fixed `StudentOverview` at route `/` with `RoleBasedHome`, automatically showing `AdminDashboard` to college administrators and `StudentOverview` to students.
+  - Guarded Student Routes: Wrapped student-specific routes (`/challenges`, `/submissions`, `/groups`, `/activity`, `/profile`, `/settings/connected-accounts`) in `StudentOnlyRoute`, instantly redirecting any administrator to `/admin`.
+  - Admin Login Redirection: Updated `Login.tsx` to automatically redirect `COLLEGE_ADMIN` and `PLATFORM_ADMIN` to `/admin`.
+  - All unit/integration tests passing with `-race` in 11.2s; frontend production build passes in 1.69s.

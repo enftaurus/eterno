@@ -52,6 +52,10 @@ Eterno College Coding Platform & Developer Intelligence:
   - Clean empty state indicators (`"—"`).
 - [x] Code Crusaders Rebranding & Portal Separation:
   - Strict separation of student and admin portals: peer groups/squads limited exclusively to student side (`/groups`).
+  - Role-based home routing (`RoleBasedHome`): `/` displays `AdminDashboard` for administrators and `StudentOverview` for students.
+  - Guarded routes (`StudentOnlyRoute`): prevents administrators from accessing student-only features, automatically redirecting them to `/admin`.
+  - Login redirection: college/platform admins navigate directly to `/admin` upon login.
+  - Root OAuth callback resolution: registered `/auth/github/callback`, `/github/callback`, and `/callback` on port 8080.
   - Rebranded student UI and identity to Code Crusaders (by Eterno Developer Intelligence).
   - Clean global footer across all layouts with interactive Privacy Policy, Terms of Service, and Security Architecture modals.
 - [x] Developer Score Intelligence Engine (0–100):
