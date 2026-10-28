@@ -16,6 +16,8 @@ import (
 	"github.com/eterno/backend/internal/leaderboards"
 	"github.com/eterno/backend/internal/middleware"
 	"github.com/eterno/backend/internal/models"
+	"github.com/eterno/backend/internal/platforms/codeforces"
+	"github.com/eterno/backend/internal/platforms/github"
 	"github.com/eterno/backend/internal/platforms/leetcode"
 	"github.com/eterno/backend/internal/scoring"
 	"github.com/eterno/backend/internal/submissions"
@@ -29,6 +31,8 @@ type Services struct {
 	Queue           *jobs.Queue
 	Worker          *jobs.Worker
 	LCAdapter       *leetcode.Adapter
+	CFAdapter       *codeforces.Adapter
+	GHAdapter       *github.Adapter
 	ChallengeSvc    *challenges.Service
 	SubmissionSvc   *submissions.Service
 	ScoringSvc      *scoring.Service
@@ -72,9 +76,13 @@ func SetupRouter(s *Services) *gin.Engine {
 		// Handlers instantiation
 		authH := handlers.NewAuthHandler(s.DB, s.Config, s.AuditSvc)
 		challengeH := handlers.NewChallengeHandler(s.ChallengeSvc, s.AuditSvc)
-		platformH := handlers.NewPlatformHandler(s.DB, s.Queue, s.LCAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc)
+		platformH := handlers.NewPlatformHandler(s.DB, s.Queue, s.LCAdapter, s.CFAdapter, s.GHAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc, s.ScoringSvc, s.GroupSvc)
 		leaderboardH := handlers.NewLeaderboardHandler(s.LeaderboardSvc)
 		analyticsH := handlers.NewAnalyticsHandler(s.AnalyticsSvc, s.ActivitySvc, s.InstitutionSvc, s.GroupSvc, s.AuditSvc)
+
+		// Public GitHub OAuth routes
+		api.GET("/platforms/github/authorize", platformH.GetGitHubOAuthURL)
+		api.GET("/platforms/github/callback", platformH.HandleGitHubOAuthCallback)
 
 		// Public Auth routes
 		authGroup := api.Group("/auth")
@@ -98,11 +106,22 @@ func SetupRouter(s *Services) *gin.Engine {
 			authProtected.GET("/me/challenges/:id", challengeH.GetStudentChallengeDetail)
 			authProtected.GET("/me/submissions", platformH.GetStudentSubmissions)
 
-			// Account Connections & LeetCode Verification
+			// Account Connections & Platform Sync (LeetCode, Codeforces, GitHub)
 			authProtected.POST("/me/platform-accounts/leetcode", platformH.LinkLeetCode)
 			authProtected.POST("/me/platform-accounts/leetcode/verify", platformH.VerifyLeetCode)
 			authProtected.POST("/me/platform-accounts/leetcode/sync", platformH.SyncLeetCode)
+			authProtected.POST("/me/platform-accounts/codeforces", platformH.LinkCodeforces)
+			authProtected.POST("/me/platform-accounts/codeforces/sync", platformH.SyncCodeforces)
+			authProtected.POST("/me/platform-accounts/github", platformH.LinkGitHub)
+			authProtected.POST("/me/platform-accounts/github/sync", platformH.SyncGitHub)
 			authProtected.GET("/me/platform-accounts", platformH.ListPlatformAccounts)
+
+			// Developer Score & Intelligence
+			authProtected.GET("/me/developer-score", platformH.GetDeveloperScore)
+
+			// Student Peer Groups (Code Crusaders Squads)
+			authProtected.GET("/me/groups", platformH.ListStudentGroups)
+			authProtected.POST("/me/groups/:id/join", platformH.JoinStudentGroup)
 
 			// Activity Heatmap & Streaks
 			authProtected.GET("/me/activity", analyticsH.GetStudentActivity)
@@ -116,7 +135,7 @@ func SetupRouter(s *Services) *gin.Engine {
 			// Leaderboards
 			authProtected.GET("/leaderboards", leaderboardH.GetLeaderboard)
 
-			// Groups
+			// Groups Directory
 			authProtected.GET("/institutions/:institution_id/groups", analyticsH.ListGroups)
 
 			// College Administrator Only

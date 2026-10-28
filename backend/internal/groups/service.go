@@ -112,3 +112,49 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID, role string) e
 	_, err := s.db.ExecContext(ctx, query, groupID, userID, role)
 	return err
 }
+
+func (s *Service) GetUserGroups(ctx context.Context, userID string) ([]map[string]interface{}, error) {
+	query := `
+		SELECT g.id, g.institution_id, g.name, g.description, g.group_type, gm.role, gm.joined_at,
+		       (SELECT COUNT(*)::int FROM group_memberships WHERE group_id = g.id) AS member_count,
+		       COALESCE((SELECT SUM(points) FROM score_events WHERE user_id = gm.user_id AND institution_id = g.institution_id), 0)::int AS my_group_points
+		FROM group_memberships gm
+		JOIN groups g ON gm.group_id = g.id
+		WHERE gm.user_id = $1
+		ORDER BY gm.joined_at DESC
+	`
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []map[string]interface{}
+	for rows.Next() {
+		var id, instID, name, gType, role string
+		var desc sql.NullString
+		var joinedAt time.Time
+		var memberCount, myPoints int
+
+		if err := rows.Scan(&id, &instID, &name, &desc, &gType, &role, &joinedAt, &memberCount, &myPoints); err != nil {
+			return nil, err
+		}
+
+		item := map[string]interface{}{
+			"id":              id,
+			"institution_id":  instID,
+			"name":            name,
+			"group_type":      gType,
+			"role":            role,
+			"joined_at":       joinedAt,
+			"member_count":    memberCount,
+			"my_group_points": myPoints,
+		}
+		if desc.Valid {
+			item["description"] = desc.String
+		}
+		list = append(list, item)
+	}
+	return list, nil
+}
+

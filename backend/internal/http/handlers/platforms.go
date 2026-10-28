@@ -1,16 +1,22 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/eterno/backend/internal/activity"
+	"github.com/eterno/backend/internal/groups"
 	"github.com/eterno/backend/internal/jobs"
 	"github.com/eterno/backend/internal/models"
+	"github.com/eterno/backend/internal/platforms/codeforces"
+	"github.com/eterno/backend/internal/platforms/github"
 	"github.com/eterno/backend/internal/platforms/leetcode"
+	"github.com/eterno/backend/internal/scoring"
 	"github.com/eterno/backend/internal/submissions"
 	"github.com/eterno/backend/internal/verification"
 	"github.com/gin-gonic/gin"
@@ -21,26 +27,38 @@ type PlatformHandler struct {
 	db           *sql.DB
 	queue        *jobs.Queue
 	lcAdapter    *leetcode.Adapter
+	cfAdapter    *codeforces.Adapter
+	ghAdapter    *github.Adapter
 	subService   *submissions.Service
 	verifService *verification.Service
 	actService   *activity.Service
+	scoringSvc   *scoring.Service
+	groupSvc     *groups.Service
 }
 
 func NewPlatformHandler(
 	db *sql.DB,
 	queue *jobs.Queue,
 	lcAdapter *leetcode.Adapter,
+	cfAdapter *codeforces.Adapter,
+	ghAdapter *github.Adapter,
 	subService *submissions.Service,
 	verifService *verification.Service,
 	actService *activity.Service,
+	scoringSvc *scoring.Service,
+	groupSvc *groups.Service,
 ) *PlatformHandler {
 	return &PlatformHandler{
 		db:           db,
 		queue:        queue,
 		lcAdapter:    lcAdapter,
+		cfAdapter:    cfAdapter,
+		ghAdapter:    ghAdapter,
 		subService:   subService,
 		verifService: verifService,
 		actService:   actService,
+		scoringSvc:   scoringSvc,
+		groupSvc:     groupSvc,
 	}
 }
 
@@ -299,3 +317,363 @@ func (h *PlatformHandler) GetStudentSubmissions(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, list)
 }
+
+// LinkCodeforces links a user's Codeforces handle and verifies its existence
+func (h *PlatformHandler) LinkCodeforces(c *gin.Context) {
+	userID := c.GetString("user_id")
+	var req models.LinkAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	handle := strings.TrimSpace(req.Username)
+	if handle == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Codeforces handle cannot be empty"})
+		return
+	}
+
+	verified, profileMeta, err := h.cfAdapter.VerifyAccount(c.Request.Context(), handle)
+	if err != nil || !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Codeforces handle not found or API unavailable"})
+		return
+	}
+
+	metaJSON, _ := json.Marshal(profileMeta)
+	query := `
+		INSERT INTO platform_accounts (
+			user_id, platform, username, verification_status, verified_at,
+			profile_metadata, updated_at
+		) VALUES ($1, 'codeforces', $2, 'VERIFIED', NOW(), $3, NOW())
+		ON CONFLICT (user_id, platform) DO UPDATE
+		SET username = EXCLUDED.username,
+		    verification_status = 'VERIFIED',
+		    verified_at = NOW(),
+		    profile_metadata = EXCLUDED.profile_metadata,
+		    updated_at = NOW()
+		RETURNING id, user_id, platform, username, verification_status
+	`
+
+	var pa models.PlatformAccount
+	err = h.db.QueryRowContext(c.Request.Context(), query, userID, handle, metaJSON).Scan(
+		&pa.ID, &pa.UserID, &pa.Platform, &pa.Username, &pa.VerificationStatus,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed saving Codeforces account link"})
+		return
+	}
+
+	// Trigger initial async sync of submissions and rating
+	go h.syncCodeforcesInternal(userID, handle)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Codeforces handle successfully verified and linked!",
+		"account": pa,
+		"profile": profileMeta,
+	})
+}
+
+// SyncCodeforces synchronizes recent accepted submissions and rating history
+func (h *PlatformHandler) SyncCodeforces(c *gin.Context) {
+	userID := c.GetString("user_id")
+
+	var handle string
+	err := h.db.QueryRowContext(c.Request.Context(), `
+		SELECT username FROM platform_accounts 
+		WHERE user_id = $1 AND platform = 'codeforces' AND verification_status = 'VERIFIED'
+	`, userID).Scan(&handle)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No verified Codeforces account linked"})
+		return
+	}
+
+	ingested, verified := h.syncCodeforcesInternal(userID, handle)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":          "Codeforces synchronization complete",
+		"records_ingested": ingested,
+		"records_verified": verified,
+	})
+}
+
+func (h *PlatformHandler) syncCodeforcesInternal(userID, handle string) (int, int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	subs, err := h.cfAdapter.FetchRecentSubmissions(ctx, handle, 50)
+	if err != nil {
+		return 0, 0
+	}
+
+	ingested := 0
+	for _, s := range subs {
+		sub, isNew, err := h.subService.IngestSubmission(ctx, userID, models.PlatformCodeforces, s)
+		if err == nil {
+			if isNew {
+				ingested++
+			}
+			// Record into canonical activity_events
+			_ = h.actService.RecordEvent(ctx, userID, "codeforces", s.ProviderID, "accepted_submission", s.SubmittedAt, map[string]interface{}{
+				"slug":  s.ProblemSlug,
+				"title": s.Title,
+			})
+			// Verify if matches any challenge problem
+			_, _ = h.verifService.VerifySubmission(ctx, sub)
+		}
+	}
+
+	// Also sync rating history
+	ratings, err := h.cfAdapter.FetchContestRatingHistory(ctx, handle)
+	if err == nil {
+		for _, r := range ratings {
+			contestID := fmt.Sprintf("%v", r["contest_id"])
+			if updatedAt, ok := r["updated_at"].(time.Time); ok {
+				_ = h.actService.RecordEvent(ctx, userID, "codeforces", "contest-"+contestID, "contest", updatedAt, r)
+			}
+		}
+	}
+
+	// Update platform_accounts last sync
+	_, _ = h.db.ExecContext(ctx, `
+		UPDATE platform_accounts 
+		SET last_sync_at = NOW(), last_sync_status = 'SUCCESS', updated_at = NOW()
+		WHERE user_id = $1 AND platform = 'codeforces'
+	`, userID)
+
+	// Recalculate Developer Score
+	_, _ = h.scoringSvc.CalculateDeveloperScore(ctx, userID)
+
+	return ingested, len(subs)
+}
+
+// GetGitHubOAuthURL generates the OAuth authorization redirect link
+func (h *PlatformHandler) GetGitHubOAuthURL(c *gin.Context) {
+	userID := c.GetString("user_id")
+	url := h.ghAdapter.GetOAuthURL(userID)
+	c.JSON(http.StatusOK, gin.H{"auth_url": url})
+}
+
+// HandleGitHubOAuthCallback processes the GitHub OAuth redirect
+func (h *PlatformHandler) HandleGitHubOAuthCallback(c *gin.Context) {
+	code := c.Query("code")
+	userID := c.Query("state")
+
+	if code == "" || userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing code or state in OAuth callback"})
+		return
+	}
+
+	token, err := h.ghAdapter.ExchangeOAuthCode(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "OAuth token exchange failed: " + err.Error()})
+		return
+	}
+
+	user, err := h.ghAdapter.FetchUserProfile(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to fetch GitHub user profile: " + err.Error()})
+		return
+	}
+
+	metaJSON, _ := json.Marshal(map[string]interface{}{
+		"login":        user.Login,
+		"name":         user.Name,
+		"avatar_url":   user.AvatarURL,
+		"public_repos": user.PublicRepos,
+		"access_token": token,
+	})
+
+	query := `
+		INSERT INTO platform_accounts (
+			user_id, platform, username, external_user_id, verification_status,
+			verified_at, profile_metadata, updated_at
+		) VALUES ($1, 'github', $2, $3, 'VERIFIED', NOW(), $4, NOW())
+		ON CONFLICT (user_id, platform) DO UPDATE
+		SET username = EXCLUDED.username,
+		    external_user_id = EXCLUDED.external_user_id,
+		    verification_status = 'VERIFIED',
+		    verified_at = NOW(),
+		    profile_metadata = EXCLUDED.profile_metadata,
+		    updated_at = NOW()
+	`
+	_, err = h.db.ExecContext(c.Request.Context(), query, userID, user.Login, fmt.Sprintf("%d", user.ID), metaJSON)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save GitHub account link"})
+		return
+	}
+
+	// Trigger initial sync of commits
+	go h.syncGitHubInternal(userID, user.Login, token)
+
+	// Redirect back to settings page
+	c.Redirect(http.StatusTemporaryRedirect, "/settings/connected-accounts?status=github_connected")
+}
+
+// LinkGitHub manually connects a public GitHub username
+func (h *PlatformHandler) LinkGitHub(c *gin.Context) {
+	userID := c.GetString("user_id")
+	var req models.LinkAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub username cannot be empty"})
+		return
+	}
+
+	metaJSON, _ := json.Marshal(map[string]interface{}{
+		"login": username,
+	})
+
+	query := `
+		INSERT INTO platform_accounts (
+			user_id, platform, username, verification_status, verified_at,
+			profile_metadata, updated_at
+		) VALUES ($1, 'github', $2, 'VERIFIED', NOW(), $3, NOW())
+		ON CONFLICT (user_id, platform) DO UPDATE
+		SET username = EXCLUDED.username,
+		    verification_status = 'VERIFIED',
+		    verified_at = NOW(),
+		    profile_metadata = EXCLUDED.profile_metadata,
+		    updated_at = NOW()
+		RETURNING id, user_id, platform, username, verification_status
+	`
+
+	var pa models.PlatformAccount
+	err := h.db.QueryRowContext(c.Request.Context(), query, userID, username, metaJSON).Scan(
+		&pa.ID, &pa.UserID, &pa.Platform, &pa.Username, &pa.VerificationStatus,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed saving GitHub account link"})
+		return
+	}
+
+	// Trigger async sync
+	go h.syncGitHubInternal(userID, username, "")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "GitHub account successfully linked!",
+		"account": pa,
+	})
+}
+
+// SyncGitHub fetches recent commits and repositories
+func (h *PlatformHandler) SyncGitHub(c *gin.Context) {
+	userID := c.GetString("user_id")
+
+	var username string
+	var metaRaw []byte
+	err := h.db.QueryRowContext(c.Request.Context(), `
+		SELECT username, profile_metadata FROM platform_accounts 
+		WHERE user_id = $1 AND platform = 'github' AND verification_status = 'VERIFIED'
+	`, userID).Scan(&username, &metaRaw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No verified GitHub account linked"})
+		return
+	}
+
+	token := ""
+	if len(metaRaw) > 0 {
+		var m map[string]interface{}
+		if err := json.Unmarshal(metaRaw, &m); err == nil {
+			if t, ok := m["access_token"].(string); ok {
+				token = t
+			}
+		}
+	}
+
+	ingested := h.syncGitHubInternal(userID, username, token)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":          "GitHub synchronization complete",
+		"records_ingested": ingested,
+	})
+}
+
+func (h *PlatformHandler) syncGitHubInternal(userID, username, token string) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	commits, err := h.ghAdapter.FetchUserCommitsAndActivity(ctx, username, token)
+	if err != nil {
+		return 0
+	}
+
+	ingested := 0
+	for _, c := range commits {
+		meta := map[string]interface{}{
+			"repo":    c.RepoName,
+			"message": c.Message,
+			"sha":     c.SHA,
+		}
+		err := h.actService.RecordEvent(ctx, userID, "github", c.SHA, "commit", c.CommittedAt, meta)
+		if err == nil {
+			ingested++
+		}
+	}
+
+	// Update platform account
+	_, _ = h.db.ExecContext(ctx, `
+		UPDATE platform_accounts 
+		SET last_sync_at = NOW(), last_sync_status = 'SUCCESS', updated_at = NOW()
+		WHERE user_id = $1 AND platform = 'github'
+	`, userID)
+
+	// Recalculate Developer Score
+	_, _ = h.scoringSvc.CalculateDeveloperScore(ctx, userID)
+
+	return ingested
+}
+
+// GetDeveloperScore calculates and returns the 0-100 Developer Score
+func (h *PlatformHandler) GetDeveloperScore(c *gin.Context) {
+	userID := c.GetString("user_id")
+	score, err := h.scoringSvc.CalculateDeveloperScore(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed calculating developer score: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, score)
+}
+
+// ListStudentGroups lists peer groups/clubs available for students
+func (h *PlatformHandler) ListStudentGroups(c *gin.Context) {
+	instID := c.GetString("institution_id")
+	if instID == "" {
+		// Look up user's institution
+		userID := c.GetString("user_id")
+		_ = h.db.QueryRowContext(c.Request.Context(), `
+			SELECT institution_id FROM institution_memberships WHERE user_id = $1 LIMIT 1
+		`, userID).Scan(&instID)
+	}
+
+	groups, err := h.groupSvc.ListGroupsForInstitution(c.Request.Context(), instID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, groups)
+}
+
+// JoinStudentGroup allows a student to join a peer group
+func (h *PlatformHandler) JoinStudentGroup(c *gin.Context) {
+	userID := c.GetString("user_id")
+	groupID := c.Param("id")
+
+	if groupID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID is required"})
+		return
+	}
+
+	err := h.groupSvc.AddMember(c.Request.Context(), groupID, userID, "MEMBER")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join peer group: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully joined group!"})
+}
+

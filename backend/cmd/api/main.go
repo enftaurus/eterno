@@ -21,6 +21,8 @@ import (
 	"github.com/eterno/backend/internal/institutions"
 	"github.com/eterno/backend/internal/jobs"
 	"github.com/eterno/backend/internal/leaderboards"
+	"github.com/eterno/backend/internal/platforms/codeforces"
+	"github.com/eterno/backend/internal/platforms/github"
 	"github.com/eterno/backend/internal/platforms/leetcode"
 	"github.com/eterno/backend/internal/scoring"
 	"github.com/eterno/backend/internal/submissions"
@@ -48,6 +50,8 @@ func main() {
 
 	// Initialize adapters
 	lcAdapter := leetcode.NewAdapter(cfg.LeetCodeGraphQLEndpoint, cfg.MockExternalProviders)
+	cfAdapter := codeforces.NewAdapter(cfg.CodeforcesAPIKey, cfg.CodeforcesAPISecret, cfg.MockExternalProviders)
+	ghAdapter := github.NewAdapter(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.MockExternalProviders)
 
 	// Initialize domain services
 	queue := jobs.NewQueue(db)
@@ -70,6 +74,8 @@ func main() {
 		Queue:           queue,
 		Worker:          worker,
 		LCAdapter:       lcAdapter,
+		CFAdapter:       cfAdapter,
+		GHAdapter:       ghAdapter,
 		ChallengeSvc:    challengeSvc,
 		SubmissionSvc:   submissionSvc,
 		ScoringSvc:      scoringSvc,
