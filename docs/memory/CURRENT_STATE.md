@@ -50,14 +50,30 @@ Eterno College Coding Platform & Developer Intelligence:
   - Persistent error banners with retry buttons on query failures.
   - Dynamic institution dropdowns on registration.
   - Clean empty state indicators (`"—"`).
+- [x] Code Crusaders Rebranding & Portal Separation:
+  - Strict separation of student and admin portals: peer groups/squads limited exclusively to student side (`/groups`).
+  - Rebranded student UI and identity to Code Crusaders (by Eterno Developer Intelligence).
+  - Clean global footer across all layouts with interactive Privacy Policy, Terms of Service, and Security Architecture modals.
+- [x] Developer Score Intelligence Engine (0–100):
+  - 5 weighted pillars: Consistency (25%), Problem Solving (25%), Competitive Programming (20%), Engineering Activity (20%), Growth (10%).
+  - Capped logarithmic normalization: $N(x) = 100 \cdot \min(1, \ln(1+x)/\ln(1+K))$.
+  - Skill Radar (Algorithms, Data Structures, Dynamic Programming, Competitive, Git, Consistency).
+  - Actionable recommendations with high/medium impact ratings.
+  - Persisted in PostgreSQL migration `000003_developer_scores.up.sql`.
+- [x] Multi-Platform Integrations:
+  - Codeforces Adapter: SHA-512 `apiSig` authentication, user rating sync, submission crawler, and contest ranking ingestion.
+  - GitHub Adapter: OAuth 2.0 authorization code exchange (`read:user,repo`), repository commit crawler, and activity ingestion.
+  - Multi-Platform Heatmap: Color-coded squares for LeetCode (amber), GitHub (emerald), Codeforces (blue), and multi-platform days (indigo).
 - [x] Comprehensive Automated Test Campaign:
-  - 70+ modular edge-case tests in `backend/tests/` passing with race detection (`-race`):
+  - 80+ modular edge-case tests in `backend/tests/` passing with race detection (`-race`):
     - `provider_test.go`: GraphQL errors, timeouts, rate limits, evil URLs, token matching.
     - `verification_test.go`: Time boundaries, multi-challenge matching, concurrent deduplication.
     - `worker_test.go`: Concurrency, disjoint claiming, stale lease recovery, retries.
     - `csv_test.go`: Formula injection, invalid emails, duplicates, batch limits, RFC 4180.
     - `auth_tenancy_test.go`: Alg none, expired tokens, tampered signatures, RBAC, tenant isolation.
     - `analytics_test.go`: Safe empty stats, streak transitions, tie-breaking, intensity scales.
-  - All tests passing with race detector in 10s: `go test -v -race ./...` -> 0 failures.
+    - `platforms_test.go`: Codeforces signature calculation, rating sync, GitHub OAuth code exchange, commit ingestion.
+    - `developer_score_test.go`: 0-100 mathematical calculation, zero-activity edge case, logarithmic normalization.
+  - All tests passing with race detector in 10.2s: `go test -v -race ./...` -> 0 failures.
   - Backend compiles clean: `go build ./cmd/...` and `go vet ./...` -> 0 errors.
-  - Frontend builds clean: `npm run build` -> 0 errors in 1.49s.
+  - Frontend builds clean: `npm run build` -> 0 errors in 1.52s.

@@ -41,3 +41,30 @@
   - Binary Builds: `go build ./cmd/...` and `go vet ./...` exited with code 0.
   - Frontend Build: `npm run build` completed cleanly in 1.49s with 0 errors.
 - **Status**: Release Candidate (RC-1) verified and ready for production deployment.
+
+## Session: 2026-10-28 (Code Crusaders & Developer Intelligence Architecture)
+- **Objective**: Complete portal separation (student vs admin), rebrand to Code Crusaders, add legal & security footer modals, configure Codeforces and GitHub OAuth credentials, build multi-platform color-coded heatmap, implement the 0–100 Developer Score engine with 5 weighted pillars, skill radar, and actionable recommendations across 10+ granular commits with 100% test pass.
+- **Actions Completed**:
+  - Configuration: Added `CodeforcesAPIKey`, `CodeforcesAPISecret`, `GitHubClientID`, `GitHubClientSecret`, and `GitHubRedirectURL` to `backend/internal/config/config.go` with `.env.example` templates.
+  - Migration: Applied `000003_developer_scores.up.sql` creating `developer_scores` table with component scores JSONB and composite unique constraints.
+  - Domain Models: Defined `DeveloperScore`, `ScoreComponent`, `SkillRadarItem`, `RecommendationItem`, and `StudentGroup` in `backend/internal/models/`.
+  - Platforms:
+    - Codeforces: SHA-512 `apiSig` authentication, user rating sync, submission crawler, and contest ranking ingestion.
+    - GitHub: OAuth 2.0 authorization code exchange (`read:user,repo`), repository commit crawler, and activity ingestion.
+  - Developer Score Mathematical Engine:
+    - 5 weighted pillars: Consistency (25%), Problem Solving (25%), Competitive Programming (20%), Engineering Activity (20%), Growth (10%).
+    - Capped logarithmic normalization: $N(x) = 100 \cdot \min(1, \ln(1+x)/\ln(1+K))$.
+    - Skill Radar across 6 CS topics with target benchmarks.
+    - Actionable recommendations with high/medium/low impact ratings.
+  - API & Endpoints: Registered `/api/v1/platforms/codeforces/sync`, `/api/v1/platforms/github/authorize`, `/api/v1/platforms/github/callback`, `/api/v1/platforms/github/sync`, `/api/v1/me/developer-score`, and `/api/v1/me/groups`.
+  - Portal Separation: Peer groups strictly scoped to students (`/groups`). Admin features strictly restricted to college admins.
+  - Rebranding: Rebranded to Code Crusaders ("by Eterno Developer Intelligence").
+  - UI Hardening: Added `AppFooter` with interactive Privacy Policy, Terms of Service, and Security Architecture modals. Multi-platform color-coded heatmap (amber LeetCode, emerald GitHub, blue Codeforces, indigo multi-platform).
+  - Profile & Overview: Added Developer Score hero card, 5 component cards, Skill Radar bars, and personalized recommendations to Profile and Overview pages.
+- **Test Suites Created & Executed**:
+  - `backend/tests/platforms_test.go`: Codeforces signature calculation, rating sync, GitHub OAuth code exchange, commit ingestion.
+  - `backend/tests/developer_score_test.go`: 0-100 mathematical calculation, zero-activity edge case, logarithmic normalization.
+  - Full Race Detector Verification: Ran `go test -v -count=1 -race ./...` across all 8 test files — 100% passed in 10.2s with 0 races and 0 failures.
+  - Binary Builds: `go build ./cmd/...` and `go vet ./...` exited with code 0.
+  - Frontend Build: `npm run build` completed cleanly in 1.52s with 0 errors.
+- **Commits Created**: 16 granular commits on `main`.
