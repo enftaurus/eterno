@@ -6,17 +6,31 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { api } from '../../lib/api';
 import { PlatformAccount } from '../../types';
-import { Code2, CheckCircle2, Copy, ExternalLink, RefreshCw, AlertCircle, Link2 } from 'lucide-react';
+import { Code2, CheckCircle2, Copy, RefreshCw, GitCommit, Trophy, Link2, ExternalLink } from 'lucide-react';
 
 export const StudentConnectedAccounts: React.FC = () => {
   const [accounts, setAccounts] = useState<PlatformAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showLinkModal, setShowLinkModal] = useState(false);
-  const [usernameInput, setUsernameInput] = useState('');
+
+  // LeetCode State
+  const [showLeetCodeModal, setShowLeetCodeModal] = useState(false);
+  const [lcUsername, setLcUsername] = useState('');
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isVerifyingLC, setIsVerifyingLC] = useState(false);
+  const [isSyncingLC, setIsSyncingLC] = useState(false);
+
+  // GitHub State
+  const [showGitHubModal, setShowGitHubModal] = useState(false);
+  const [ghUsername, setGhUsername] = useState('');
+  const [isConnectingGH, setIsConnectingGH] = useState(false);
+  const [isSyncingGH, setIsSyncingGH] = useState(false);
+
+  // Codeforces State
+  const [showCFModal, setShowCFModal] = useState(false);
+  const [cfHandle, setCfHandle] = useState('');
+  const [isConnectingCF, setIsConnectingCF] = useState(false);
+  const [isSyncingCF, setIsSyncingCF] = useState(false);
+
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -38,28 +52,32 @@ export const StudentConnectedAccounts: React.FC = () => {
 
   useEffect(() => {
     fetchAccounts();
+    // Check if redirected from GitHub OAuth callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('status') === 'github_connected') {
+      setFeedback({ type: 'success', message: 'GitHub account connected via OAuth successfully!' });
+    }
   }, []);
 
+  // LeetCode Handlers
   const handleLinkLeetCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setFeedback(null);
     try {
       const res = await api.post<{ verification_token: string; instructions: string }>('/me/platform-accounts/leetcode', {
-        username: usernameInput,
+        username: lcUsername,
       });
       setGeneratedToken(res.verification_token);
-      setFeedback({ type: 'success', message: 'LeetCode handle registered. Please place the verification token in your LeetCode profile bio.' });
+      setShowLeetCodeModal(false);
+      setFeedback({ type: 'success', message: 'LeetCode handle registered. Please paste verification token into your profile bio.' });
       await fetchAccounts();
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Failed to link account' });
-    } finally {
-      setIsSubmitting(false);
+      setFeedback({ type: 'error', message: err.message || 'Failed to link LeetCode handle' });
     }
   };
 
-  const handleVerifyAccount = async () => {
-    setIsVerifying(true);
+  const handleVerifyLeetCode = async () => {
+    setIsVerifyingLC(true);
     setFeedback(null);
     try {
       const res = await api.post<{ status: string; message: string }>('/me/platform-accounts/leetcode/verify');
@@ -68,12 +86,12 @@ export const StudentConnectedAccounts: React.FC = () => {
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Verification token was not found in profile bio.' });
     } finally {
-      setIsVerifying(false);
+      setIsVerifyingLC(false);
     }
   };
 
-  const handleSyncAccount = async () => {
-    setIsSyncing(true);
+  const handleSyncLeetCode = async () => {
+    setIsSyncingLC(true);
     setFeedback(null);
     try {
       const res = await api.post<{ records_ingested: number; records_verified: number }>('/me/platform-accounts/leetcode/sync');
@@ -82,7 +100,80 @@ export const StudentConnectedAccounts: React.FC = () => {
     } catch (err: any) {
       setFeedback({ type: 'error', message: err.message || 'Synchronization failed' });
     } finally {
-      setIsSyncing(false);
+      setIsSyncingLC(false);
+    }
+  };
+
+  // GitHub Handlers
+  const handleGitHubOAuth = async () => {
+    try {
+      const res = await api.get<{ auth_url: string }>('/platforms/github/authorize');
+      if (res?.auth_url) {
+        window.location.href = res.auth_url;
+      }
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: 'Failed initiating GitHub OAuth: ' + err.message });
+    }
+  };
+
+  const handleLinkGitHubManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsConnectingGH(true);
+    setFeedback(null);
+    try {
+      await api.post('/me/platform-accounts/github', { username: ghUsername });
+      setShowGitHubModal(false);
+      setFeedback({ type: 'success', message: 'GitHub account linked and public events synchronized!' });
+      await fetchAccounts();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Failed connecting GitHub account' });
+    } finally {
+      setIsConnectingGH(false);
+    }
+  };
+
+  const handleSyncGitHub = async () => {
+    setIsSyncingGH(true);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ records_ingested: number }>('/me/platform-accounts/github/sync');
+      setFeedback({ type: 'success', message: `GitHub synchronization complete! ${res.records_ingested} commits and events ingested.` });
+      await fetchAccounts();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'GitHub sync failed' });
+    } finally {
+      setIsSyncingGH(false);
+    }
+  };
+
+  // Codeforces Handlers
+  const handleLinkCodeforces = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsConnectingCF(true);
+    setFeedback(null);
+    try {
+      await api.post('/me/platform-accounts/codeforces', { username: cfHandle });
+      setShowCFModal(false);
+      setFeedback({ type: 'success', message: 'Codeforces handle verified and linked! Rating and submissions synced.' });
+      await fetchAccounts();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Failed verifying Codeforces handle' });
+    } finally {
+      setIsConnectingCF(false);
+    }
+  };
+
+  const handleSyncCodeforces = async () => {
+    setIsSyncingCF(true);
+    setFeedback(null);
+    try {
+      const res = await api.post<{ records_ingested: number }>('/me/platform-accounts/codeforces/sync');
+      setFeedback({ type: 'success', message: `Codeforces synchronization complete! ${res.records_ingested} accepted solves retrieved.` });
+      await fetchAccounts();
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err.message || 'Codeforces sync failed' });
+    } finally {
+      setIsSyncingCF(false);
     }
   };
 
@@ -95,20 +186,16 @@ export const StudentConnectedAccounts: React.FC = () => {
   };
 
   const lcAccount = accounts.find((a) => a.platform === 'leetcode');
+  const ghAccount = accounts.find((a) => a.platform === 'github');
+  const cfAccount = accounts.find((a) => a.platform === 'codeforces');
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Connected Accounts & Identity Verification</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Prove control of your LeetCode profile to automatically verify college challenge solutions.
-          </p>
-        </div>
-
-        <Button size="sm" onClick={() => setShowLinkModal(true)} icon={<Link2 className="w-3.5 h-3.5" />}>
-          Connect LeetCode Account
-        </Button>
+      <div>
+        <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Connected Accounts & Identity Verification</h1>
+        <p className="text-xs text-neutral-500 mt-0.5">
+          Connect your coding platforms to power your unified 0–100 Developer Score and verify college challenge solutions.
+        </p>
       </div>
 
       {feedback && (
@@ -122,11 +209,11 @@ export const StudentConnectedAccounts: React.FC = () => {
         </div>
       )}
 
-      {/* LeetCode Account Card */}
+      {/* 1. LeetCode Account Card */}
       <Card>
         <CardHeader
           title="LeetCode Integration"
-          subtitle="Primary verification engine for algorithmic coding challenges"
+          subtitle="Primary verification engine for algorithmic college coding challenges"
           action={
             lcAccount ? (
               <Badge variant={lcAccount.verification_status === 'VERIFIED' ? 'success' : 'warning'} size="md" dot>
@@ -140,38 +227,27 @@ export const StudentConnectedAccounts: React.FC = () => {
 
         <div className="mt-4 space-y-4">
           {lcAccount ? (
-            <div className="p-4 bg-neutral-50/70 border border-neutral-200/80 rounded-lg space-y-3">
+            <div className="p-4 bg-amber-50/20 border border-amber-200/60 rounded-lg space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-md border border-amber-200">
+                  <div className="p-2 bg-amber-100 text-amber-700 rounded-md border border-amber-200">
                     <Code2 className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="text-sm font-bold text-neutral-900">@{lcAccount.username}</span>
                     <p className="text-[11px] text-neutral-400">
-                      {lcAccount.verified_at ? `Verified on ${new Date(lcAccount.verified_at).toLocaleDateString()}` : 'Awaiting profile token verification'}
+                      {lcAccount.verified_at ? `Verified on ${new Date(lcAccount.verified_at).toLocaleDateString()}` : 'Awaiting profile bio token verification'}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {lcAccount.verification_status !== 'VERIFIED' ? (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleVerifyAccount}
-                      isLoading={isVerifying}
-                    >
+                    <Button variant="primary" size="sm" onClick={handleVerifyLeetCode} isLoading={isVerifyingLC}>
                       Verify Token Now
                     </Button>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSyncAccount}
-                      isLoading={isSyncing}
-                      icon={<RefreshCw className="w-3.5 h-3.5" />}
-                    >
+                    <Button variant="outline" size="sm" onClick={handleSyncLeetCode} isLoading={isSyncingLC} icon={<RefreshCw className="w-3.5 h-3.5" />}>
                       Sync Submissions
                     </Button>
                   )}
@@ -192,73 +268,180 @@ export const StudentConnectedAccounts: React.FC = () => {
                   <p className="text-[11px] text-neutral-500 leading-relaxed">
                     1. Copy the token above.<br />
                     2. Go to your <a href="https://leetcode.com/profile/" target="_blank" rel="noreferrer" className="text-indigo-600 underline">LeetCode Profile Settings</a> and paste it into the <strong>About Me</strong> field.<br />
-                    3. Save your LeetCode profile and click <strong>Verify Token Now</strong> above.
+                    3. Save your profile and click <strong>Verify Token Now</strong> above.
                   </p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-8 border border-dashed border-neutral-200 rounded-lg">
+            <div className="text-center py-6 border border-dashed border-neutral-200 rounded-lg">
               <Code2 className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
               <p className="text-xs text-neutral-600 font-medium">No LeetCode account linked yet</p>
-              <p className="text-[11px] text-neutral-400 mt-0.5">Link your account to verify your college assignments automatically.</p>
-              <Button size="sm" variant="outline" className="mt-3" onClick={() => setShowLinkModal(true)}>
-                Connect Account
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => setShowLeetCodeModal(true)}>
+                Connect LeetCode
               </Button>
             </div>
           )}
         </div>
       </Card>
 
-      {/* GitHub & Codeforces Integrations (Roadmap / Beta) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader
-            title="GitHub Integration"
-            subtitle="Repository commit tracking and pull request analytics"
-            action={<Badge variant="neutral" size="sm">Upcoming</Badge>}
-          />
-          <div className="mt-2 text-xs text-neutral-500">
-            <p>OAuth app and webhook receiver scheduled for Eterno v2. Commit counts will contribute to your unified developer heatmap.</p>
-          </div>
-        </Card>
+      {/* 2. GitHub Account Card */}
+      <Card>
+        <CardHeader
+          title="GitHub Integration"
+          subtitle="Repository commit tracking, pull requests, and engineering activity"
+          action={
+            ghAccount ? (
+              <Badge variant="success" size="md" dot>VERIFIED</Badge>
+            ) : (
+              <Badge variant="neutral" size="md">NOT LINKED</Badge>
+            )
+          }
+        />
 
-        <Card>
-          <CardHeader
-            title="Codeforces Integration"
-            subtitle="Contest rating synchronization and problem solves"
-            action={<Badge variant="neutral" size="sm">Upcoming</Badge>}
-          />
-          <div className="mt-2 text-xs text-neutral-500">
-            <p>Codeforces public API crawler scheduled for Eterno v2. Contest standings will be integrated into institutional leaderboards.</p>
-          </div>
-        </Card>
-      </div>
+        <div className="mt-4 space-y-4">
+          {ghAccount ? (
+            <div className="p-4 bg-emerald-50/20 border border-emerald-200/60 rounded-lg flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-md border border-emerald-200">
+                  <GitCommit className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-neutral-900">@{ghAccount.username}</span>
+                  <p className="text-[11px] text-neutral-400">
+                    Linked and tracking engineering commits for Developer Score
+                  </p>
+                </div>
+              </div>
+
+              <Button variant="outline" size="sm" onClick={handleSyncGitHub} isLoading={isSyncingGH} icon={<RefreshCw className="w-3.5 h-3.5" />}>
+                Sync Commits
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-6 border border-dashed border-neutral-200 rounded-lg">
+              <GitCommit className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+              <p className="text-xs text-neutral-600 font-medium">Connect GitHub to verify your engineering activity</p>
+              <div className="flex items-center justify-center gap-2 mt-3">
+                <Button size="sm" variant="primary" onClick={handleGitHubOAuth} icon={<ExternalLink className="w-3.5 h-3.5" />}>
+                  Connect with GitHub OAuth
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowGitHubModal(true)}>
+                  Enter Username
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 3. Codeforces Account Card */}
+      <Card>
+        <CardHeader
+          title="Codeforces Integration"
+          subtitle="Contest rating history, performance trends, and competitive problem solves"
+          action={
+            cfAccount ? (
+              <Badge variant="success" size="md" dot>VERIFIED</Badge>
+            ) : (
+              <Badge variant="neutral" size="md">NOT LINKED</Badge>
+            )
+          }
+        />
+
+        <div className="mt-4 space-y-4">
+          {cfAccount ? (
+            <div className="p-4 bg-blue-50/20 border border-blue-200/60 rounded-lg flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 text-blue-700 rounded-md border border-blue-200">
+                  <Trophy className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-neutral-900">@{cfAccount.username}</span>
+                  <p className="text-[11px] text-neutral-400">
+                    Rating and competitive contest history synchronized
+                  </p>
+                </div>
+              </div>
+
+              <Button variant="outline" size="sm" onClick={handleSyncCodeforces} isLoading={isSyncingCF} icon={<RefreshCw className="w-3.5 h-3.5" />}>
+                Sync Rating & Solves
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-6 border border-dashed border-neutral-200 rounded-lg">
+              <Trophy className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+              <p className="text-xs text-neutral-600 font-medium">Link Codeforces to verify competitive programming rating</p>
+              <Button size="sm" variant="outline" className="mt-3" onClick={() => setShowCFModal(true)}>
+                Connect Codeforces Handle
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Modal: Link LeetCode */}
       <Modal
-        isOpen={showLinkModal}
-        onClose={() => setShowLinkModal(false)}
+        isOpen={showLeetCodeModal}
+        onClose={() => setShowLeetCodeModal(false)}
         title="Connect LeetCode Account"
-        description="Enter your public LeetCode handle. We will generate a cryptographic verification challenge token."
+        description="Enter your public LeetCode handle. We will generate a verification challenge token."
       >
         <form onSubmit={handleLinkLeetCode} className="space-y-4">
           <Input
             label="LeetCode Username"
             placeholder="e.g. tour_de_code"
-            value={usernameInput}
-            onChange={(e) => setUsernameInput(e.target.value)}
+            value={lcUsername}
+            onChange={(e) => setLcUsername(e.target.value)}
             required
-            helperText="Make sure your LeetCode profile is set to public so our crawler can read submissions."
           />
-
           <div className="flex items-center justify-end gap-2 pt-3">
-            <Button variant="ghost" size="sm" type="button" onClick={() => setShowLinkModal(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" type="submit" isLoading={isSubmitting}>
-              Generate Verification Token
-            </Button>
+            <Button variant="ghost" size="sm" type="button" onClick={() => setShowLeetCodeModal(false)}>Cancel</Button>
+            <Button size="sm" type="submit">Generate Token</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Link GitHub */}
+      <Modal
+        isOpen={showGitHubModal}
+        onClose={() => setShowGitHubModal(false)}
+        title="Connect GitHub Account"
+        description="Enter your public GitHub username to crawl public commits and pull requests."
+      >
+        <form onSubmit={handleLinkGitHubManual} className="space-y-4">
+          <Input
+            label="GitHub Username"
+            placeholder="e.g. torvalds"
+            value={ghUsername}
+            onChange={(e) => setGhUsername(e.target.value)}
+            required
+          />
+          <div className="flex items-center justify-end gap-2 pt-3">
+            <Button variant="ghost" size="sm" type="button" onClick={() => setShowGitHubModal(false)}>Cancel</Button>
+            <Button size="sm" type="submit" isLoading={isConnectingGH}>Link GitHub</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Link Codeforces */}
+      <Modal
+        isOpen={showCFModal}
+        onClose={() => setShowCFModal(false)}
+        title="Connect Codeforces Account"
+        description="Enter your Codeforces handle to verify contest rating and problem-solving history."
+      >
+        <form onSubmit={handleLinkCodeforces} className="space-y-4">
+          <Input
+            label="Codeforces Handle"
+            placeholder="e.g. tourist"
+            value={cfHandle}
+            onChange={(e) => setCfHandle(e.target.value)}
+            required
+          />
+          <div className="flex items-center justify-end gap-2 pt-3">
+            <Button variant="ghost" size="sm" type="button" onClick={() => setShowCFModal(false)}>Cancel</Button>
+            <Button size="sm" type="submit" isLoading={isConnectingCF}>Verify & Link</Button>
           </div>
         </form>
       </Modal>
