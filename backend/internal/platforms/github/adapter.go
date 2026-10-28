@@ -25,6 +25,7 @@ var (
 type Adapter struct {
 	clientID     string
 	clientSecret string
+	redirectURL  string
 	httpClient   *http.Client
 	mockMode     bool
 	mockEvents   map[string][]GitHubCommitDTO
@@ -38,6 +39,10 @@ func NewAdapter(clientID, clientSecret string, mockMode bool) *Adapter {
 		mockMode:     mockMode,
 		mockEvents:   make(map[string][]GitHubCommitDTO),
 	}
+}
+
+func (a *Adapter) SetRedirectURL(u string) {
+	a.redirectURL = strings.TrimSpace(u)
 }
 
 func (a *Adapter) PlatformName() string {
@@ -70,6 +75,9 @@ func (a *Adapter) GetOAuthURL(state string) string {
 	params := url.Values{}
 	params.Set("client_id", a.clientID)
 	params.Set("scope", "read:user,repo")
+	if a.redirectURL != "" {
+		params.Set("redirect_uri", a.redirectURL)
+	}
 	if state != "" {
 		params.Set("state", state)
 	}

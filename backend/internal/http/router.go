@@ -76,13 +76,15 @@ func SetupRouter(s *Services) *gin.Engine {
 		// Handlers instantiation
 		authH := handlers.NewAuthHandler(s.DB, s.Config, s.AuditSvc)
 		challengeH := handlers.NewChallengeHandler(s.ChallengeSvc, s.AuditSvc)
-		platformH := handlers.NewPlatformHandler(s.DB, s.Queue, s.LCAdapter, s.CFAdapter, s.GHAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc, s.ScoringSvc, s.GroupSvc)
+		platformH := handlers.NewPlatformHandler(s.DB, s.Config, s.Queue, s.LCAdapter, s.CFAdapter, s.GHAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc, s.ScoringSvc, s.GroupSvc)
 		leaderboardH := handlers.NewLeaderboardHandler(s.LeaderboardSvc)
 		analyticsH := handlers.NewAnalyticsHandler(s.AnalyticsSvc, s.ActivitySvc, s.InstitutionSvc, s.GroupSvc, s.AuditSvc)
 
-		// Public GitHub OAuth routes
+		// GitHub OAuth routes (available both publicly for browser redirect and within authProtected)
 		api.GET("/platforms/github/authorize", platformH.GetGitHubOAuthURL)
 		api.GET("/platforms/github/callback", platformH.HandleGitHubOAuthCallback)
+		api.POST("/platforms/github/callback", platformH.ExchangeGitHubOAuthCode)
+		api.POST("/platforms/github/exchange", platformH.ExchangeGitHubOAuthCode)
 
 		// Public Auth routes
 		authGroup := api.Group("/auth")

@@ -200,6 +200,18 @@ export CORS_ALLOWED_ORIGINS="http://localhost:5173,http://localhost:3000,http://
 # Default to REAL-PROVIDER mode. Can be overridden by user setting MOCK_EXTERNAL_PROVIDERS=true in shell
 export MOCK_EXTERNAL_PROVIDERS="${MOCK_EXTERNAL_PROVIDERS:-false}"
 
+# Load .env file into environment if present
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    echo -e "  Loading environment configurations from .env..."
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        [[ "$key" =~ ^[[:space:]]*#.*$ ]] && continue
+        [[ -z "${key// }" ]] && continue
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+        export "$key"="$value"
+    done < "$PROJECT_ROOT/.env"
+fi
+
 "$PROJECT_ROOT/backend/bin/api" > "$PROJECT_ROOT/backend.log" 2>&1 &
 API_PID=$!
 PIDS+=("$API_PID")

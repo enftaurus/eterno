@@ -52,6 +52,9 @@ func main() {
 	lcAdapter := leetcode.NewAdapter(cfg.LeetCodeGraphQLEndpoint, cfg.MockExternalProviders)
 	cfAdapter := codeforces.NewAdapter(cfg.CodeforcesAPIKey, cfg.CodeforcesAPISecret, cfg.MockExternalProviders)
 	ghAdapter := github.NewAdapter(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.MockExternalProviders)
+	if cfg.GitHubRedirectURL != "" {
+		ghAdapter.SetRedirectURL(cfg.GitHubRedirectURL)
+	}
 
 	// Initialize domain services
 	queue := jobs.NewQueue(db)

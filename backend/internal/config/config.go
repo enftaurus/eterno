@@ -35,9 +35,41 @@ type Config struct {
 	CodeforcesAPISecret       string
 	GitHubClientID            string
 	GitHubClientSecret        string
+	GitHubRedirectURL         string
+	FrontendURL               string
+}
+
+func loadDotEnv() {
+	paths := []string{".env", "../.env", "../../.env"}
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			val = strings.Trim(val, `"'`)
+			if _, exists := os.LookupEnv(key); !exists {
+				_ = os.Setenv(key, val)
+			}
+		}
+		break
+	}
 }
 
 func Load() (*Config, error) {
+	loadDotEnv()
+
 	env := strings.ToLower(getEnv("ENV", "development"))
 	isProd := env == "production"
 
@@ -170,8 +202,10 @@ func Load() (*Config, error) {
 		MockExternalProviders:     mockProviders,
 		CodeforcesAPIKey:          getEnv("CF_API_KEY", ""),
 		CodeforcesAPISecret:       getEnv("CF_API_SECRET", ""),
-		GitHubClientID:            getEnv("GH_CLIENT", getEnv("GH_CLIENT_ID", "")),
-		GitHubClientSecret:        getEnv("GH_SECRET", getEnv("GH_CLIENT_SECRET", "")),
+		GitHubClientID:            getEnv("GH_CLIENT", getEnv("GH_CLIENT_ID", getEnv("GITHUB_CLIENT_ID", ""))),
+		GitHubClientSecret:        getEnv("GH_SECRET", getEnv("GH_CLIENT_SECRET", getEnv("GITHUB_CLIENT_SECRET", ""))),
+		GitHubRedirectURL:         getEnv("GH_REDIRECT_URL", getEnv("GITHUB_REDIRECT_URL", "")),
+		FrontendURL:               getEnv("FRONTEND_URL", "http://localhost:5173"),
 	}, nil
 }
 

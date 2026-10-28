@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/eterno/backend/internal/activity"
+	"github.com/eterno/backend/internal/auth"
+	"github.com/eterno/backend/internal/config"
 	"github.com/eterno/backend/internal/groups"
 	"github.com/eterno/backend/internal/jobs"
 	"github.com/eterno/backend/internal/models"
@@ -25,6 +28,7 @@ import (
 
 type PlatformHandler struct {
 	db           *sql.DB
+	cfg          *config.Config
 	queue        *jobs.Queue
 	lcAdapter    *leetcode.Adapter
 	cfAdapter    *codeforces.Adapter
@@ -38,6 +42,7 @@ type PlatformHandler struct {
 
 func NewPlatformHandler(
 	db *sql.DB,
+	cfg *config.Config,
 	queue *jobs.Queue,
 	lcAdapter *leetcode.Adapter,
 	cfAdapter *codeforces.Adapter,
@@ -50,6 +55,7 @@ func NewPlatformHandler(
 ) *PlatformHandler {
 	return &PlatformHandler{
 		db:           db,
+		cfg:          cfg,
 		queue:        queue,
 		lcAdapter:    lcAdapter,
 		cfAdapter:    cfAdapter,
@@ -449,21 +455,115 @@ func (h *PlatformHandler) syncCodeforcesInternal(userID, handle string) (int, in
 // GetGitHubOAuthURL generates the OAuth authorization redirect link
 func (h *PlatformHandler) GetGitHubOAuthURL(c *gin.Context) {
 	userID := c.GetString("user_id")
+	if userID == "" {
+		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" && h.cfg != nil {
+				if claims, err := auth.ValidateToken(h.cfg, parts[1]); err == nil {
+					userID = claims.UserID
+				}
+			}
+		}
+	}
+	if userID == "" {
+		userID = c.Query("state")
+	}
 	url := h.ghAdapter.GetOAuthURL(userID)
 	c.JSON(http.StatusOK, gin.H{"auth_url": url})
 }
 
-// HandleGitHubOAuthCallback processes the GitHub OAuth redirect
+// HandleGitHubOAuthCallback processes the GitHub OAuth redirect from browser
 func (h *PlatformHandler) HandleGitHubOAuthCallback(c *gin.Context) {
+	frontendURL := "http://localhost:5173"
+	if h.cfg != nil && h.cfg.FrontendURL != "" {
+		frontendURL = h.cfg.FrontendURL
+	}
+
 	code := c.Query("code")
 	userID := c.Query("state")
 
 	if code == "" || userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing code or state in OAuth callback"})
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/settings/connected-accounts?error=%s", frontendURL, url.QueryEscape("Missing code or state in OAuth callback")))
 		return
 	}
 
 	token, err := h.ghAdapter.ExchangeOAuthCode(c.Request.Context(), code)
+	if err != nil {
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/settings/connected-accounts?error=%s", frontendURL, url.QueryEscape("OAuth token exchange failed: "+err.Error())))
+		return
+	}
+
+	user, err := h.ghAdapter.FetchUserProfile(c.Request.Context(), token)
+	if err != nil {
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/settings/connected-accounts?error=%s", frontendURL, url.QueryEscape("Failed to fetch GitHub profile: "+err.Error())))
+		return
+	}
+
+	metaJSON, _ := json.Marshal(map[string]interface{}{
+		"login":        user.Login,
+		"name":         user.Name,
+		"avatar_url":   user.AvatarURL,
+		"public_repos": user.PublicRepos,
+		"access_token": token,
+	})
+
+	query := `
+		INSERT INTO platform_accounts (
+			user_id, platform, username, external_user_id, verification_status,
+			verified_at, profile_metadata, updated_at
+		) VALUES ($1, 'github', $2, $3, 'VERIFIED', NOW(), $4, NOW())
+		ON CONFLICT (user_id, platform) DO UPDATE
+		SET username = EXCLUDED.username,
+		    external_user_id = EXCLUDED.external_user_id,
+		    verification_status = 'VERIFIED',
+		    verified_at = NOW(),
+		    profile_metadata = EXCLUDED.profile_metadata,
+		    updated_at = NOW()
+	`
+	_, err = h.db.ExecContext(c.Request.Context(), query, userID, user.Login, fmt.Sprintf("%d", user.ID), metaJSON)
+	if err != nil {
+		c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/settings/connected-accounts?error=%s", frontendURL, url.QueryEscape("Failed saving GitHub account link")))
+		return
+	}
+
+	// Trigger initial sync of commits
+	go h.syncGitHubInternal(userID, user.Login, token)
+
+	// Redirect back to settings page on frontend
+	c.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/settings/connected-accounts?status=github_connected", frontendURL))
+}
+
+// ExchangeGitHubOAuthCode handles direct JSON code exchange from frontend
+func (h *PlatformHandler) ExchangeGitHubOAuthCode(c *gin.Context) {
+	userID := c.GetString("user_id")
+	if userID == "" {
+		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" && h.cfg != nil {
+				if claims, err := auth.ValidateToken(h.cfg, parts[1]); err == nil {
+					userID = claims.UserID
+				}
+			}
+		}
+	}
+	var req struct {
+		Code  string `json:"code"`
+		State string `json:"state"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization code is required"})
+		return
+	}
+
+	if userID == "" && req.State != "" {
+		userID = req.State
+	}
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User authentication required to link GitHub account"})
+		return
+	}
+
+	token, err := h.ghAdapter.ExchangeOAuthCode(c.Request.Context(), req.Code)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OAuth token exchange failed: " + err.Error()})
 		return
@@ -498,15 +598,17 @@ func (h *PlatformHandler) HandleGitHubOAuthCallback(c *gin.Context) {
 	`
 	_, err = h.db.ExecContext(c.Request.Context(), query, userID, user.Login, fmt.Sprintf("%d", user.ID), metaJSON)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save GitHub account link"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed saving GitHub account link"})
 		return
 	}
 
 	// Trigger initial sync of commits
 	go h.syncGitHubInternal(userID, user.Login, token)
 
-	// Redirect back to settings page
-	c.Redirect(http.StatusTemporaryRedirect, "/settings/connected-accounts?status=github_connected")
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "GitHub account connected via OAuth successfully!",
+		"username": user.Login,
+	})
 }
 
 // LinkGitHub manually connects a public GitHub username
