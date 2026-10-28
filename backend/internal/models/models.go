@@ -389,3 +389,39 @@ type HeatmapResponse struct {
 	TotalEvents int              `json:"total_events"`
 	Days        []HeatmapDayData `json:"days"`
 }
+
+type ScoreComponent struct {
+	Name         string                 `json:"name"`
+	Score        float64                `json:"score"`        // 0 to 100
+	Weight       float64                `json:"weight"`       // e.g. 0.25
+	Contribution float64                `json:"contribution"` // Score * Weight
+	Description  string                 `json:"description"`
+	Metrics      map[string]interface{} `json:"metrics"`
+}
+
+type SkillRadarItem struct {
+	Topic       string  `json:"topic"`
+	Score       float64 `json:"score"` // 0 to 100
+	SolvedCount int     `json:"solved_count"`
+	Target      int     `json:"target"`
+}
+
+type RecommendationItem struct {
+	Category    string `json:"category"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	ActionURL   string `json:"action_url,omitempty"`
+	Impact      string `json:"impact"` // HIGH, MEDIUM, LOW
+}
+
+type DeveloperScoreResponse struct {
+	TotalScore      int                  `json:"total_score"` // 0 to 100
+	Consistency     ScoreComponent       `json:"consistency"`
+	ProblemSolving  ScoreComponent       `json:"problem_solving"`
+	Competitive     ScoreComponent       `json:"competitive"`
+	Engineering     ScoreComponent       `json:"engineering"`
+	Growth          ScoreComponent       `json:"growth"`
+	SkillRadar      []SkillRadarItem     `json:"skill_radar"`
+	Recommendations []RecommendationItem `json:"recommendations"`
+	CalculatedAt    time.Time            `json:"calculated_at"`
+}
