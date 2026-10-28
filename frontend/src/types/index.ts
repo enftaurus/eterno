@@ -198,3 +198,54 @@ export interface AuditLog {
   ip_address?: string | null;
   created_at: string;
 }
+
+export interface ScoreComponent {
+  name: string;
+  score: number;
+  weight: number;
+  contribution: number;
+  description: string;
+  metrics: Record<string, any>;
+}
+
+export interface SkillRadarItem {
+  topic: string;
+  score: number;
+  solved_count: number;
+  target: number;
+}
+
+export interface RecommendationItem {
+  category: string;
+  title: string;
+  description: string;
+  action_url?: string;
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface DeveloperScoreResponse {
+  total_score: number;
+  consistency: ScoreComponent;
+  problem_solving: ScoreComponent;
+  competitive: ScoreComponent;
+  engineering: ScoreComponent;
+  growth: ScoreComponent;
+  skill_radar: SkillRadarItem[];
+  recommendations: RecommendationItem[];
+  calculated_at: string;
+}
+
+export interface StudentGroup {
+  id: string;
+  institution_id: string;
+  name: string;
+  description?: string;
+  group_type: string;
+  role?: string;
+  joined_at?: string;
+  member_count: number;
+  total_group_points?: number;
+  my_group_points?: number;
+  points_per_student?: number;
+}
+
