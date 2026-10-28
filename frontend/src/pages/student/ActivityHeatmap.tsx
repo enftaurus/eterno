@@ -128,7 +128,6 @@ export const StudentActivityHeatmap: React.FC = () => {
           </div>
         </Card>
       </div>
-      </div>
 
       {/* Main Heatmap Container */}
       <Card>

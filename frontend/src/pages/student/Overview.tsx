@@ -4,9 +4,9 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Heatmap } from '../../components/heatmap/Heatmap';
 import { api } from '../../lib/api';
-import { ChallengeAssignment, StreakAnalytics, HeatmapResponse, Submission } from '../../types';
+import { ChallengeAssignment, StreakAnalytics, HeatmapResponse, Submission, DeveloperScoreResponse } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { Flame, CheckCircle2, Trophy, Clock, ArrowRight, RefreshCw, AlertCircle, Code2 } from 'lucide-react';
+import { Flame, CheckCircle2, Trophy, Clock, ArrowRight, RefreshCw, AlertCircle, Code2, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const StudentOverview: React.FC = () => {
@@ -15,6 +15,7 @@ export const StudentOverview: React.FC = () => {
   const [streaks, setStreaks] = useState<StreakAnalytics | null>(null);
   const [heatmap, setHeatmap] = useState<HeatmapResponse | null>(null);
   const [recentSubmissions, setRecentSubmissions] = useState<Submission[]>([]);
+  const [devScore, setDevScore] = useState<DeveloperScoreResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
@@ -24,16 +25,18 @@ export const StudentOverview: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [assignRes, streakRes, heatRes, subsRes] = await Promise.all([
+      const [assignRes, streakRes, heatRes, subsRes, scoreRes] = await Promise.all([
         api.get<ChallengeAssignment[]>('/me/challenges'),
         api.get<StreakAnalytics>('/me/streaks'),
         api.get<HeatmapResponse>('/me/heatmap'),
         api.get<Submission[]>('/me/submissions'),
+        api.get<DeveloperScoreResponse>('/me/developer-score').catch(() => null),
       ]);
       setAssignments(assignRes || []);
       setStreaks(streakRes);
       setHeatmap(heatRes);
       setRecentSubmissions(subsRes || []);
+      setDevScore(scoreRes);
     } catch (err: any) {
       setError(err.message || 'Failed to load student overview data');
     } finally {
@@ -72,8 +75,17 @@ export const StudentOverview: React.FC = () => {
     }
   };
 
+  const getScoreTier = (score: number) => {
+    if (score >= 90) return { title: 'Master Contender', badge: 'bg-purple-50 text-purple-700 border-purple-200' };
+    if (score >= 75) return { title: 'Senior Solver', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+    if (score >= 50) return { title: 'Active Contender', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (score >= 25) return { title: 'Rising Developer', badge: 'bg-blue-50 text-blue-700 border-blue-200' };
+    return { title: 'Aspiring Crusader', badge: 'bg-neutral-50 text-neutral-700 border-neutral-200' };
+  };
+
   const activeAssignments = assignments.filter((a) => a.status !== 'VERIFIED');
   const completedAssignments = assignments.filter((a) => a.status === 'VERIFIED');
+  const scoreTier = getScoreTier(devScore?.total_score || 0);
 
   return (
     <div className="space-y-6">
@@ -125,6 +137,86 @@ export const StudentOverview: React.FC = () => {
           <button onClick={() => setSyncFeedback(null)} className="text-neutral-400 hover:text-neutral-600 text-xs font-semibold">✕</button>
         </div>
       )}
+
+      {/* Developer Score Overview Banner */}
+      <div className="p-5 bg-gradient-to-r from-neutral-900 via-neutral-800 to-indigo-950 text-white rounded-xl shadow-sm border border-neutral-800 flex flex-wrap items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400">
+            <Zap className="w-6 h-6 text-indigo-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold tracking-wide text-neutral-200 uppercase">Developer Score</h2>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${scoreTier.badge}`}>
+                {scoreTier.title}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-3xl font-extrabold text-white tracking-tight">
+                {isLoading ? '—' : devScore?.total_score ?? 0}
+              </span>
+              <span className="text-xs text-neutral-400 font-medium">/ 100</span>
+              <span className="text-xs text-neutral-400 ml-2 hidden sm:inline">
+                Cross-platform verified intelligence across LeetCode, GitHub, & Codeforces
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 5 Component Bars Preview */}
+        {devScore && (
+          <div className="hidden md:flex items-center gap-4 text-xs">
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-neutral-400">
+                <span>Consistency</span>
+                <span className="font-semibold text-neutral-200">{Math.round(devScore.consistency.score)}%</span>
+              </div>
+              <div className="w-20 bg-neutral-700 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-amber-400 h-full rounded-full" style={{ width: `${Math.min(100, devScore.consistency.score)}%` }} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-neutral-400">
+                <span>Problem Solving</span>
+                <span className="font-semibold text-neutral-200">{Math.round(devScore.problem_solving.score)}%</span>
+              </div>
+              <div className="w-20 bg-neutral-700 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-indigo-400 h-full rounded-full" style={{ width: `${Math.min(100, devScore.problem_solving.score)}%` }} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-neutral-400">
+                <span>Competitive</span>
+                <span className="font-semibold text-neutral-200">{Math.round(devScore.competitive.score)}%</span>
+              </div>
+              <div className="w-20 bg-neutral-700 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-blue-400 h-full rounded-full" style={{ width: `${Math.min(100, devScore.competitive.score)}%` }} />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-neutral-400">
+                <span>Git Commits</span>
+                <span className="font-semibold text-neutral-200">{Math.round(devScore.engineering.score)}%</span>
+              </div>
+              <div className="w-20 bg-neutral-700 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-emerald-400 h-full rounded-full" style={{ width: `${Math.min(100, devScore.engineering.score)}%` }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <Link to="/profile">
+            <Button size="sm" variant="outline" className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700 hover:border-neutral-600 text-xs flex items-center gap-1.5">
+              <span>Skill Radar & Insights</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </Link>
+        </div>
+      </div>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
