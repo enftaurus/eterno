@@ -33,6 +33,8 @@ export const StudentActivityHeatmap: React.FC = () => {
   }, [year, selectedSource]);
 
   const leetcodeEventsCount = (heatmap?.days || []).reduce((acc, d) => acc + (d.source_breakdown?.leetcode || 0), 0);
+  const githubEventsCount = (heatmap?.days || []).reduce((acc, d) => acc + (d.source_breakdown?.github || 0), 0);
+  const codeforcesEventsCount = (heatmap?.days || []).reduce((acc, d) => acc + (d.source_breakdown?.codeforces || 0), 0);
   const activeDaysCount = (heatmap?.days || []).filter((d) => d.count > 0).length;
 
   return (
@@ -41,7 +43,7 @@ export const StudentActivityHeatmap: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Unified Developer Activity Heatmap</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Normalized coding activity across LeetCode, GitHub, Codeforces, and verified Eterno college challenges.
+            Real multi-platform coding activity synchronized across LeetCode, GitHub, Codeforces, and Code Crusaders college challenges.
           </p>
         </div>
 
@@ -79,40 +81,42 @@ export const StudentActivityHeatmap: React.FC = () => {
             <p className="text-xl font-bold text-neutral-900">
               {isLoading ? '—' : leetcodeEventsCount} <span className="text-xs font-normal text-neutral-400">verified</span>
             </p>
-            <span className="text-[10px] text-emerald-600 font-medium">Server verified</span>
-          </div>
-        </Card>
-
-        <Card className="flex items-center gap-4">
-          <div className="p-3 bg-neutral-100 rounded-lg text-neutral-800 border border-neutral-200">
-            <GitCommit className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">GitHub Commits</span>
-              <Badge variant="neutral" size="sm">Upcoming</Badge>
-            </div>
-            <p className="text-xs font-medium text-neutral-500 mt-1">Integration in beta</p>
-            <span className="text-[10px] text-neutral-400">Webhook crawler in v2</span>
-          </div>
-        </Card>
-
-        <Card className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600 border border-indigo-200">
-            <Trophy className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Codeforces</span>
-              <Badge variant="neutral" size="sm">Upcoming</Badge>
-            </div>
-            <p className="text-xs font-medium text-neutral-500 mt-1">Rating sync in beta</p>
-            <span className="text-[10px] text-neutral-400">Contest tracker in v2</span>
+            <span className="text-[10px] text-amber-600 font-medium">Algorithmic Solves</span>
           </div>
         </Card>
 
         <Card className="flex items-center gap-4">
           <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600 border border-emerald-200">
+            <GitCommit className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">GitHub Commits</span>
+            </div>
+            <p className="text-xl font-bold text-neutral-900">
+              {isLoading ? '—' : githubEventsCount} <span className="text-xs font-normal text-neutral-400">events</span>
+            </p>
+            <span className="text-[10px] text-emerald-600 font-medium">Repository Activity</span>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-4">
+          <div className="p-3 bg-blue-50 rounded-lg text-blue-600 border border-blue-200">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Codeforces</span>
+            </div>
+            <p className="text-xl font-bold text-neutral-900">
+              {isLoading ? '—' : codeforcesEventsCount} <span className="text-xs font-normal text-neutral-400">events</span>
+            </p>
+            <span className="text-[10px] text-blue-600 font-medium">Contest & Solves</span>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600 border border-indigo-200">
             <Layers className="w-5 h-5" />
           </div>
           <div>
@@ -120,9 +124,10 @@ export const StudentActivityHeatmap: React.FC = () => {
             <p className="text-xl font-bold text-neutral-900">
               {isLoading ? '—' : activeDaysCount} <span className="text-xs font-normal text-neutral-400">days ({heatmap?.total_events ?? 0} events)</span>
             </p>
-            <span className="text-[10px] text-neutral-400 font-medium">persisted in PostgreSQL</span>
+            <span className="text-[10px] text-indigo-600 font-medium">Unified Ledger</span>
           </div>
         </Card>
+      </div>
       </div>
 
       {/* Main Heatmap Container */}
