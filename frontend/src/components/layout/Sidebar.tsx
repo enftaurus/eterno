@@ -24,20 +24,20 @@ export const Sidebar: React.FC = () => {
     { to: '/', label: 'Overview', icon: LayoutDashboard },
     { to: '/challenges', label: 'Challenges', icon: Code2 },
     { to: '/submissions', label: 'My Submissions', icon: CheckCircle2 },
+    { to: '/groups', label: 'Code Crusaders Squads', icon: Users },
     { to: '/leaderboards', label: 'Leaderboards', icon: Trophy },
     { to: '/activity', label: 'Activity Heatmap', icon: Activity },
-    { to: '/profile', label: 'Developer Profile', icon: UserIcon },
+    { to: '/profile', label: 'Developer Score', icon: UserIcon },
     { to: '/settings/connected-accounts', label: 'Connected Accounts', icon: LinkIcon },
   ];
 
   const adminNavItems = [
     { to: '/admin', label: 'Overview Dashboard', icon: LayoutDashboard },
-    { to: '/admin/challenges', label: 'Challenges', icon: Code2 },
-    { to: '/admin/students', label: 'Students Directory', icon: Users },
-    { to: '/admin/groups', label: 'Batches & Groups', icon: Building },
+    { to: '/admin/challenges', label: 'Challenges Management', icon: Code2 },
+    { to: '/admin/students', label: 'Students Directory & CSV', icon: Users },
     { to: '/admin/leaderboards', label: 'College Leaderboards', icon: Trophy },
     { to: '/admin/consistency', label: 'Consistency Analytics', icon: Activity },
-    { to: '/admin/audit-logs', label: 'Audit Logs', icon: ShieldAlert },
+    { to: '/admin/audit-logs', label: 'Security Audit Logs', icon: ShieldAlert },
   ];
 
   const activeClasses = 'bg-indigo-50/80 text-indigo-700 font-medium';
@@ -54,8 +54,7 @@ export const Sidebar: React.FC = () => {
             </div>
             <div>
               <span className="text-base font-bold text-neutral-900 tracking-tight flex items-center gap-1.5">
-                Eterno
-                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">v1</span>
+                Code Crusaders
               </span>
               <p className="text-[11px] text-neutral-400 font-normal truncate max-w-[140px]">
                 {institution?.name || 'Developer Intelligence'}
@@ -67,7 +66,7 @@ export const Sidebar: React.FC = () => {
         {/* Navigation Section */}
         <div className="p-3">
           <p className="px-3 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-            {isCollegeAdmin ? 'Institution Portal' : 'Developer Platform'}
+            {isCollegeAdmin ? 'Administration Portal' : 'Student Portal'}
           </p>
 
           <nav className="space-y-0.5 mt-1">
@@ -87,27 +86,6 @@ export const Sidebar: React.FC = () => {
               </NavLink>
             ))}
           </nav>
-
-          {isCollegeAdmin && (
-            <div className="mt-6 pt-4 border-t border-neutral-100">
-              <p className="px-3 py-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                Student View
-              </p>
-              <nav className="space-y-0.5 mt-1">
-                <NavLink
-                  to="/"
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 text-xs rounded-md ${
-                      isActive ? activeClasses : inactiveClasses
-                    }`
-                  }
-                >
-                  <LayoutDashboard className="w-4 h-4 shrink-0" />
-                  <span>Student Experience</span>
-                </NavLink>
-              </nav>
-            </div>
-          )}
         </div>
       </div>
 

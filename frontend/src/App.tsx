@@ -15,6 +15,7 @@ import { StudentLeaderboards } from './pages/student/Leaderboards';
 import { StudentActivityHeatmap } from './pages/student/ActivityHeatmap';
 import { StudentProfile } from './pages/student/Profile';
 import { StudentConnectedAccounts } from './pages/student/ConnectedAccounts';
+import { StudentGroups } from './pages/student/Groups';
 
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { AdminChallenges } from './pages/admin/Challenges';
@@ -81,6 +82,7 @@ export const App: React.FC = () => {
               <Route path="challenges" element={<StudentChallenges />} />
               <Route path="challenges/:id" element={<StudentChallengeDetail />} />
               <Route path="submissions" element={<StudentSubmissions />} />
+              <Route path="groups" element={<StudentGroups />} />
               <Route path="leaderboards" element={<StudentLeaderboards />} />
               <Route path="activity" element={<StudentActivityHeatmap />} />
               <Route path="profile" element={<StudentProfile />} />
@@ -108,14 +110,6 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute adminOnly>
                     <AdminStudents />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="admin/groups"
-                element={
-                  <ProtectedRoute adminOnly>
-                    <AdminGroups />
                   </ProtectedRoute>
                 }
               />
