@@ -6,6 +6,8 @@ import { Bell, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Notification } from '../../types';
 
+import { AppFooter } from './AppFooter';
+
 export const AppLayout: React.FC = () => {
   const { user, institution, isCollegeAdmin } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -33,11 +35,13 @@ export const AppLayout: React.FC = () => {
     <div className="flex min-h-screen bg-[#fafafa]">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
         {/* Top Header */}
         <header className="h-14 bg-white border-b border-neutral-200/80 px-6 flex items-center justify-between shrink-0 sticky top-0 z-20">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-neutral-400 capitalize">
+            <span className="text-xs font-semibold text-neutral-800 tracking-tight">Code Crusaders</span>
+            <span className="text-neutral-300">/</span>
+            <span className="text-xs font-medium text-neutral-500 capitalize">
               {location.pathname.replace('/', '').replace(/-/g, ' ') || 'Overview'}
             </span>
           </div>
@@ -91,9 +95,12 @@ export const AppLayout: React.FC = () => {
         </header>
 
         {/* Main Workspace Body */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
+
+        {/* Global Footer */}
+        <AppFooter />
       </div>
     </div>
   );
