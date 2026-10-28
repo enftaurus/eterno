@@ -71,19 +71,29 @@ func SetupRouter(s *Services) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
 
+	// Handlers instantiation
+	authH := handlers.NewAuthHandler(s.DB, s.Config, s.AuditSvc)
+	challengeH := handlers.NewChallengeHandler(s.ChallengeSvc, s.AuditSvc)
+	platformH := handlers.NewPlatformHandler(s.DB, s.Config, s.Queue, s.LCAdapter, s.CFAdapter, s.GHAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc, s.ScoringSvc, s.GroupSvc)
+	leaderboardH := handlers.NewLeaderboardHandler(s.LeaderboardSvc)
+	analyticsH := handlers.NewAnalyticsHandler(s.AnalyticsSvc, s.ActivitySvc, s.InstitutionSvc, s.GroupSvc, s.AuditSvc)
+
+	// Root-level OAuth callback endpoints (catches http://localhost:8080/auth/github/callback, /github/callback, /callback)
+	r.GET("/auth/github/callback", platformH.HandleGitHubOAuthCallback)
+	r.POST("/auth/github/callback", platformH.ExchangeGitHubOAuthCode)
+	r.GET("/github/callback", platformH.HandleGitHubOAuthCallback)
+	r.POST("/github/callback", platformH.ExchangeGitHubOAuthCode)
+	r.GET("/callback", platformH.HandleGitHubOAuthCallback)
+	r.POST("/callback", platformH.ExchangeGitHubOAuthCode)
+
 	api := r.Group("/api/v1")
 	{
-		// Handlers instantiation
-		authH := handlers.NewAuthHandler(s.DB, s.Config, s.AuditSvc)
-		challengeH := handlers.NewChallengeHandler(s.ChallengeSvc, s.AuditSvc)
-		platformH := handlers.NewPlatformHandler(s.DB, s.Config, s.Queue, s.LCAdapter, s.CFAdapter, s.GHAdapter, s.SubmissionSvc, s.VerificationSvc, s.ActivitySvc, s.ScoringSvc, s.GroupSvc)
-		leaderboardH := handlers.NewLeaderboardHandler(s.LeaderboardSvc)
-		analyticsH := handlers.NewAnalyticsHandler(s.AnalyticsSvc, s.ActivitySvc, s.InstitutionSvc, s.GroupSvc, s.AuditSvc)
-
-		// GitHub OAuth routes (available both publicly for browser redirect and within authProtected)
+		// GitHub OAuth routes under /api/v1
 		api.GET("/platforms/github/authorize", platformH.GetGitHubOAuthURL)
 		api.GET("/platforms/github/callback", platformH.HandleGitHubOAuthCallback)
 		api.POST("/platforms/github/callback", platformH.ExchangeGitHubOAuthCode)
+		api.GET("/auth/github/callback", platformH.HandleGitHubOAuthCallback)
+		api.POST("/auth/github/callback", platformH.ExchangeGitHubOAuthCode)
 		api.POST("/platforms/github/exchange", platformH.ExchangeGitHubOAuthCode)
 
 		// Public Auth routes
