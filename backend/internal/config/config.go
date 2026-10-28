@@ -31,6 +31,10 @@ type Config struct {
 	SyncRetryBaseBackoffSec   int
 	LeetCodeGraphQLEndpoint   string
 	MockExternalProviders     bool
+	CodeforcesAPIKey          string
+	CodeforcesAPISecret       string
+	GitHubClientID            string
+	GitHubClientSecret        string
 }
 
 func Load() (*Config, error) {
@@ -164,6 +168,10 @@ func Load() (*Config, error) {
 		SyncRetryBaseBackoffSec:   retryBackoffSec,
 		LeetCodeGraphQLEndpoint:   lcEndpoint,
 		MockExternalProviders:     mockProviders,
+		CodeforcesAPIKey:          getEnv("CF_API_KEY", ""),
+		CodeforcesAPISecret:       getEnv("CF_API_SECRET", ""),
+		GitHubClientID:            getEnv("GH_CLIENT", getEnv("GH_CLIENT_ID", "")),
+		GitHubClientSecret:        getEnv("GH_SECRET", getEnv("GH_CLIENT_SECRET", "")),
 	}, nil
 }
 
