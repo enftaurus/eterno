@@ -19,8 +19,12 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await login(email, password);
-      navigate('/');
+      const loggedUser = await login(email, password);
+      if (loggedUser.role === 'COLLEGE_ADMIN' || loggedUser.role === 'PLATFORM_ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Invalid credentials');
     } finally {
@@ -34,8 +38,12 @@ export const Login: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      await login(demoEmail, 'Password123!');
-      navigate('/');
+      const loggedUser = await login(demoEmail, 'Password123!');
+      if (loggedUser.role === 'COLLEGE_ADMIN' || loggedUser.role === 'PLATFORM_ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Demo login failed');
     } finally {

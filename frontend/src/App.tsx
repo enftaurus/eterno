@@ -58,6 +58,26 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
   return <>{children}</>;
 };
 
+const RoleBasedHome: React.FC = () => {
+  const { isCollegeAdmin } = useAuth();
+  if (isCollegeAdmin) {
+    return <AdminDashboard />;
+  }
+  return <StudentOverview />;
+};
+
+const StudentOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isCollegeAdmin } = useAuth();
+  if (isCollegeAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+  return <>{children}</>;
+};
+
+const GitHubOAuthRedirectHandler: React.FC = () => {
+  return <Navigate to={`/settings/connected-accounts${window.location.search}`} replace />;
+};
+
 export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -68,6 +88,10 @@ export const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
+            {/* Direct GitHub OAuth redirects to frontend port 5173 */}
+            <Route path="/auth/github/callback" element={<GitHubOAuthRedirectHandler />} />
+            <Route path="/github/callback" element={<GitHubOAuthRedirectHandler />} />
+
             {/* Authenticated Workspace */}
             <Route
               path="/"
@@ -77,16 +101,18 @@ export const App: React.FC = () => {
                 </ProtectedRoute>
               }
             >
+              {/* Role-based home screen (AdminDashboard for college admins, StudentOverview for students) */}
+              <Route index element={<RoleBasedHome />} />
+
               {/* Student Experience */}
-              <Route index element={<StudentOverview />} />
-              <Route path="challenges" element={<StudentChallenges />} />
-              <Route path="challenges/:id" element={<StudentChallengeDetail />} />
-              <Route path="submissions" element={<StudentSubmissions />} />
-              <Route path="groups" element={<StudentGroups />} />
+              <Route path="challenges" element={<StudentOnlyRoute><StudentChallenges /></StudentOnlyRoute>} />
+              <Route path="challenges/:id" element={<StudentOnlyRoute><StudentChallengeDetail /></StudentOnlyRoute>} />
+              <Route path="submissions" element={<StudentOnlyRoute><StudentSubmissions /></StudentOnlyRoute>} />
+              <Route path="groups" element={<StudentOnlyRoute><StudentGroups /></StudentOnlyRoute>} />
               <Route path="leaderboards" element={<StudentLeaderboards />} />
-              <Route path="activity" element={<StudentActivityHeatmap />} />
-              <Route path="profile" element={<StudentProfile />} />
-              <Route path="settings/connected-accounts" element={<StudentConnectedAccounts />} />
+              <Route path="activity" element={<StudentOnlyRoute><StudentActivityHeatmap /></StudentOnlyRoute>} />
+              <Route path="profile" element={<StudentOnlyRoute><StudentProfile /></StudentOnlyRoute>} />
+              <Route path="settings/connected-accounts" element={<StudentOnlyRoute><StudentConnectedAccounts /></StudentOnlyRoute>} />
 
               {/* College Administrator Portal */}
               <Route

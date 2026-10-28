@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
@@ -48,7 +48,7 @@ export const Sidebar: React.FC = () => {
       <div>
         {/* Brand Header */}
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <Link to={isCollegeAdmin ? '/admin' : '/'} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
               <Code2 className="w-5 h-5" />
             </div>
@@ -60,7 +60,7 @@ export const Sidebar: React.FC = () => {
                 {institution?.name || 'Developer Intelligence'}
               </p>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Navigation Section */}
